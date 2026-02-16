@@ -1,0 +1,19 @@
+{
+  "model_type": "cnn",
+  "image_size": [
+    128,
+    128
+  ],
+  "batch_size": 16,
+  "learning_rate": 0.0001,
+  "epochs": 20,
+  "augmentation": true,
+  "timestamp": "2026-02-07T00:38:50.584830",
+  "hardware_info": {
+    "tensorflow_version": "2.20.0",
+    "python_version": "3.13.5 (tags/v3.13.5:6cb20a2, Jun 11 2025, 16:15:46) [MSC v.1943 64 bit (AMD64)]",
+    "gpu_available": false,
+    "cpu_count": 8,
+    "gpu_devices": []
+  }
+}
