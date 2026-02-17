@@ -22,3 +22,8 @@ jupyter>=1.0.0
 ipykernel>=6.0.0
 black>=22.0.0
 flake8>=4.0.0
+
+# Web Backend
+fastapi>=0.100.0
+uvicorn[standard]>=0.20.0
+python-multipart>=0.0.6
