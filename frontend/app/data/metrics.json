@@ -1,0 +1,31 @@
+{
+  "global_metrics": {
+    "accuracy": 0.86,
+    "precision": 0.86,
+    "recall": 0.86,
+    "f1_score": 0.86
+  },
+  "clinical_highlights": [
+    { 
+      "title": "Safety Leader", 
+      "value": "97% Pituitary Recall", 
+      "note": "The model successfully identified 145 out of 149 pituitary cases." 
+    },
+    { 
+      "title": "Screening Reliability", 
+      "value": "93% Healthy Precision", 
+      "note": "When the system predicts 'No Tumor', it is accurate 93% of the time." 
+    },
+    {
+      "title": "Diagnostic Challenge",
+      "value": "45 Glioma/Meningioma Errors",
+      "note": "Significant visual overlap between these two classes remains the primary confusion point."
+    }
+  ],
+  "confusion_matrix": [
+    { "label": "Glioma", "correct": 106, "misclassified_as": "Meningioma", "count": 45 },
+    { "label": "Meningioma", "correct": 137, "misclassified_as": "Pituitary/NoTumor", "count": 25 },
+    { "label": "No Tumor", "correct": 174, "misclassified_as": "Glioma", "count": 9 },
+    { "label": "Pituitary", "correct": 145, "misclassified_as": "Meningioma", "count": 4 }
+  ]
+}
