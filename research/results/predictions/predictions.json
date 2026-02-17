@@ -1,9 +1,0 @@
-[
-  {
-    "image_path": "data\\brain-tumor-mri-dataset\\testing\\glioma\\Te-gl_0010.jpg",
-    "predicted_class": "Tumor",
-    "confidence": 0.999457061290741,
-    "raw_score": 0.999457061290741,
-    "threshold": 0.5
-  }
-]

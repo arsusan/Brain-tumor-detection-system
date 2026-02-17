@@ -4,33 +4,44 @@ from sqlalchemy.orm import sessionmaker
 import datetime
 
 # 1. THE CONNECTION URL
-# Format: postgresql://[USER]:[PASSWORD]@[HOST]:[PORT]/[DATABASE_NAME]
-# CHANGE 'yourpassword' to the password you set during Postgres installation!
+# Keep your port 5433 and password 'root' as per your setup
 DATABASE_URL = "postgresql://postgres:root@localhost:5433/brain_tumor_db"
 
-# 2. CREATE THE ENGINE (The actual connection tool)
+# 2. CREATE THE ENGINE
 engine = create_engine(DATABASE_URL)
 
-# 3. CREATE A SESSION (The factory for individual database tasks)
+# 3. CREATE A SESSION
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# 4. BASE CLASS (All our tables will inherit from this)
+# 4. BASE CLASS
 Base = declarative_base()
 
-# 5. DEFINE THE SCAN TABLE (This is the "Excel" sheet structure)
+# 5. DEFINE THE UPDATED SCAN TABLE (Matching the 4-Class Categorization)
 class ScanResult(Base):
     __tablename__ = "scans"
 
-    id = Column(Integer, primary_key=True, index=True) # Unique ID for every row
-    filename = Column(String)                         # Name of MRI file
-    prediction = Column(String)                       # "Tumor" or "No Tumor"
-    confidence = Column(Float)                        # e.g., 0.98
-    heatmap_url = Column(String)                      # Path to the saved heatmap image
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String)
+    
+    # This will now store: 'glioma', 'meningioma', 'pituitary', or 'notumor'
+    prediction = Column(String) 
+    
+    # The highest probability score
+    confidence = Column(Float)
+    
+    # NEW: Individual probabilities for the 4-class distribution
+    # This matches your project synopsis requirements for categorization
+    prob_glioma = Column(Float)
+    prob_meningioma = Column(Float)
+    prob_pituitary = Column(Float)
+    prob_notumor = Column(Float)
+    
+    heatmap_url = Column(String)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 # 6. INITIALIZATION HELPER
 def init_db():
-    # This automatically creates the "scans" table in Postgres if it doesn't exist
+    # This will create the table with the new columns
     Base.metadata.create_all(bind=engine)
 
 # 7. DEPENDENCY HELPER

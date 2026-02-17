@@ -19,7 +19,7 @@ from .preprocessing import ImagePreprocessor
 
 
 class ModelTrainer:
-    """Model training and evaluation class"""
+    """Model training and evaluation class (4-Class Version)"""
     
     def __init__(self, config: Config):
         self.config = config
@@ -35,20 +35,20 @@ class ModelTrainer:
         self.training_time = None
         
     def prepare_data(self):
-        """Prepare train, validation, and test data"""
+        """Prepare train, validation, and test data for 4-class classification"""
         
         print("\n" + "="*60)
-        print("📊 PREPARING DATA")
+        print("📊 PREPARING 4-CLASS CATEGORICAL DATA")
         print("="*60)
         
         # Load dataset statistics
         self.data_loader.load_dataset_stats()
         
-        # Load training data
-        train_paths, train_labels = self.data_loader.load_binary_dataset('Training')
+        # --- UPDATED: Load categorical (4-class) instead of binary ---
+        train_paths, train_labels = self.data_loader.load_categorical_dataset('Training')
         
         # Load test data
-        test_paths, test_labels = self.data_loader.load_binary_dataset('Testing')
+        test_paths, test_labels = self.data_loader.load_categorical_dataset('Testing')
         
         # Split training into train and validation
         train_paths, val_paths, train_labels, val_labels = self.data_loader.create_train_val_split(
@@ -113,33 +113,21 @@ class ModelTrainer:
                 filename=str(self.config.RESULTS_DIR / f"training_log_{timestamp}.csv"),
                 separator=',',
                 append=True
-            ),
-            
-            # TensorBoard (optional)
-            # keras.callbacks.TensorBoard(
-            #     log_dir=str(self.config.LOG_DIR / f"{model_name}_{timestamp}"),
-            #     histogram_freq=1,
-            #     write_graph=True
-            # )
+            )
         ]
         
-        print("✅ Callbacks created:")
-        print(f"  - Model checkpoint (loss & accuracy)")
-        print(f"  - Early stopping (patience={self.config.PATIENCE})")
-        print(f"  - ReduceLROnPlateau")
-        print(f"  - CSV Logger")
-        
+        print("✅ Callbacks created.")
         return callbacks
     
     def train_model(self, model_type: str = 'cnn', 
-                   epochs: Optional[int] = None) -> Dict:
+                    epochs: Optional[int] = None) -> Dict:
         """Train the model"""
         
         if epochs is None:
             epochs = self.config.EPOCHS
         
         print("\n" + "="*60)
-        print("🚀 STARTING TRAINING")
+        print("🚀 STARTING MULTICLASS TRAINING")
         print("="*60)
         
         # Prepare data
@@ -177,12 +165,6 @@ class ModelTrainer:
         train_steps = len(train_paths) // self.config.BATCH_SIZE
         val_steps = len(val_paths) // self.config.BATCH_SIZE
         
-        print(f"\n⚙️ Training Configuration:")
-        print(f"  Epochs: {epochs}")
-        print(f"  Batch size: {self.config.BATCH_SIZE}")
-        print(f"  Train steps per epoch: {train_steps}")
-        print(f"  Validation steps: {val_steps}")
-        
         # Create callbacks
         callbacks = self.create_callbacks(model_type)
         
@@ -206,7 +188,7 @@ class ModelTrainer:
         self.history = history.history
         self.training_time = training_time
         
-        print(f"\n✅ Training completed in {training_time:.2f} seconds ({training_time/60:.2f} minutes)")
+        print(f"\n✅ Training completed in {training_time/60:.2f} minutes")
         
         # Save the final model
         final_model_path = self.config.MODELS_DIR / f"final_model_{model_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.keras"
@@ -224,24 +206,21 @@ class ModelTrainer:
         }
     
     def save_training_metadata(self, model: keras.Model, training_time: float):
-        """Save training metadata"""
+        """Save training metadata for the 4-class project"""
         
         metadata = {
             'training_date': datetime.now().isoformat(),
-            'training_time_seconds': training_time,
             'training_time_minutes': training_time / 60,
-            'model_type': 'binary_classification',
+            'model_type': 'multiclass_classification',
+            'num_classes': self.config.NUM_CLASSES,
+            'classes': self.config.CLASSES,
             'input_shape': model.input_shape[1:],
             'parameters': {
-                'trainable': int(sum([tf.keras.backend.count_params(w) for w in model.trainable_weights])),
-                'non_trainable': int(sum([tf.keras.backend.count_params(w) for w in model.non_trainable_weights])),
                 'total': int(model.count_params())
             },
             'config': {
-                'image_size': self.config.IMAGE_SIZE,
                 'batch_size': self.config.BATCH_SIZE,
                 'learning_rate': self.config.LEARNING_RATE,
-                'dropout_rate': self.config.DROPOUT_RATE,
                 'epochs': self.config.EPOCHS
             }
         }
@@ -253,94 +232,53 @@ class ModelTrainer:
         print(f"✅ Training metadata saved to: {metadata_path}")
     
     def plot_training_history(self, save_plots: bool = True):
-        """Plot training history"""
+        """Plot training history using original 2x3 grid layout"""
         
         if self.history is None:
-            print("⚠️ No training history available. Train model first.")
+            print("⚠️ No training history available.")
             return
         
         history = self.history
-        
-        # Create figure
         fig, axes = plt.subplots(2, 3, figsize=(15, 10))
         
-        # Plot loss
-        axes[0, 0].plot(history['loss'], label='Training Loss', linewidth=2)
-        axes[0, 0].plot(history['val_loss'], label='Validation Loss', linewidth=2)
-        axes[0, 0].set_title('Training and Validation Loss', fontsize=12)
-        axes[0, 0].set_xlabel('Epoch')
-        axes[0, 0].set_ylabel('Loss')
-        axes[0, 0].legend()
-        axes[0, 0].grid(True, alpha=0.3)
+        # Plot Logic
+        metrics_to_plot = [
+            ('loss', 'Loss', axes[0, 0]),
+            ('accuracy', 'Accuracy', axes[0, 1]),
+            ('precision', 'Precision', axes[0, 2]),
+            ('recall', 'Recall', axes[1, 0]),
+            ('auc', 'AUC', axes[1, 1])
+        ]
         
-        # Plot accuracy
-        axes[0, 1].plot(history['accuracy'], label='Training Accuracy', linewidth=2)
-        axes[0, 1].plot(history['val_accuracy'], label='Validation Accuracy', linewidth=2)
-        axes[0, 1].set_title('Training and Validation Accuracy', fontsize=12)
-        axes[0, 1].set_xlabel('Epoch')
-        axes[0, 1].set_ylabel('Accuracy')
-        axes[0, 1].legend()
-        axes[0, 1].grid(True, alpha=0.3)
-        
-        # Plot precision
-        axes[0, 2].plot(history['precision'], label='Training Precision', linewidth=2)
-        axes[0, 2].plot(history['val_precision'], label='Validation Precision', linewidth=2)
-        axes[0, 2].set_title('Training and Validation Precision', fontsize=12)
-        axes[0, 2].set_xlabel('Epoch')
-        axes[0, 2].set_ylabel('Precision')
-        axes[0, 2].legend()
-        axes[0, 2].grid(True, alpha=0.3)
-        
-        # Plot recall
-        axes[1, 0].plot(history['recall'], label='Training Recall', linewidth=2)
-        axes[1, 0].plot(history['val_recall'], label='Validation Recall', linewidth=2)
-        axes[1, 0].set_title('Training and Validation Recall', fontsize=12)
-        axes[1, 0].set_xlabel('Epoch')
-        axes[1, 0].set_ylabel('Recall')
-        axes[1, 0].legend()
-        axes[1, 0].grid(True, alpha=0.3)
-        
-        # Plot AUC
-        axes[1, 1].plot(history['auc'], label='Training AUC', linewidth=2)
-        axes[1, 1].plot(history['val_auc'], label='Validation AUC', linewidth=2)
-        axes[1, 1].set_title('Training and Validation AUC', fontsize=12)
-        axes[1, 1].set_xlabel('Epoch')
-        axes[1, 1].set_ylabel('AUC')
-        axes[1, 1].legend()
-        axes[1, 1].grid(True, alpha=0.3)
-        
-        # Plot learning rate if available
+        for key, name, ax in metrics_to_plot:
+            if key in history:
+                ax.plot(history[key], label=f'Train {name}', linewidth=2)
+                ax.plot(history[f'val_{key}'], label=f'Val {name}', linewidth=2)
+                ax.set_title(f'Training and Validation {name}')
+                ax.set_xlabel('Epoch')
+                ax.set_ylabel(name)
+                ax.legend()
+                ax.grid(True, alpha=0.3)
+
+        # Plot learning rate
         if 'lr' in history:
-            axes[1, 2].plot(history['lr'], label='Learning Rate', linewidth=2, color='purple')
-            axes[1, 2].set_title('Learning Rate Schedule', fontsize=12)
+            axes[1, 2].plot(history['lr'], label='Learning Rate', color='purple')
+            axes[1, 2].set_title('Learning Rate Schedule')
             axes[1, 2].set_xlabel('Epoch')
-            axes[1, 2].set_ylabel('Learning Rate')
             axes[1, 2].legend()
             axes[1, 2].grid(True, alpha=0.3)
         else:
             axes[1, 2].axis('off')
         
-        plt.suptitle('Training History', fontsize=16, y=1.02)
+        plt.suptitle('4-Class Model Training History', fontsize=16, y=1.02)
         plt.tight_layout()
         
-        # Save plot
         if save_plots:
             plot_path = self.config.RESULTS_DIR / "plots" / "training_history.png"
             plt.savefig(plot_path, dpi=300, bbox_inches='tight')
             print(f"✅ Training history plot saved to: {plot_path}")
         
         plt.show()
-        
-        # Print summary statistics
-        print("\n📈 Training Summary:")
-        print(f"  Final training loss: {history['loss'][-1]:.4f}")
-        print(f"  Final validation loss: {history['val_loss'][-1]:.4f}")
-        print(f"  Best validation loss: {min(history['val_loss']):.4f}")
-        print(f"  Final training accuracy: {history['accuracy'][-1]:.4f}")
-        print(f"  Final validation accuracy: {history['val_accuracy'][-1]:.4f}")
-        print(f"  Best validation accuracy: {max(history['val_accuracy']):.4f}")
-        print(f"  Training time: {self.training_time:.2f}s ({self.training_time/60:.2f} minutes)")
-
 
 # Export class
 __all__ = ['ModelTrainer']

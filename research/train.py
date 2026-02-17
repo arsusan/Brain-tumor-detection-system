@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
-Brain Tumor Detection - Training Script
-Train a custom CNN for binary classification of brain tumors from MRI images
+Brain Tumor Categorization - Main Training Script
+Project by: Susan Aryal
 """
 
 import os
 import sys
 import argparse
+import json
 from datetime import datetime
+from pathlib import Path
 
-# Add src to path
+# Add src to path to ensure modules are importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.config import Config
@@ -17,143 +19,122 @@ from src.utils import (
     set_random_seeds, 
     setup_gpu_memory_growth, 
     create_directory_structure,
-    get_hardware_info
+    get_hardware_info,
+    save_detailed_report
 )
 from src.trainer import ModelTrainer
 
 
 def parse_arguments():
-    """Parse command line arguments"""
-    parser = argparse.ArgumentParser(description='Train Brain Tumor Detection Model')
+    """Parse command line arguments for flexible training"""
+    parser = argparse.ArgumentParser(description='Train Brain Tumor Categorization Model')
     
     parser.add_argument('--model', type=str, default='cnn',
-                       choices=['cnn', 'efficient'],
-                       help='Model architecture to use (default: cnn)')
+                        choices=['cnn', 'efficient'],
+                        help='Model architecture: cnn (custom) or efficient (separable conv)')
     
     parser.add_argument('--epochs', type=int, default=None,
-                       help='Number of training epochs')
+                        help='Number of training epochs')
     
     parser.add_argument('--batch-size', type=int, default=None,
-                       help='Batch size for training')
-    
-    parser.add_argument('--learning-rate', type=float, default=None,
-                       help='Learning rate for optimizer')
-    
-    parser.add_argument('--image-size', type=int, nargs=2, default=None,
-                       help='Image size as two integers (height width)')
-    
-    parser.add_argument('--no-augmentation', action='store_true',
-                       help='Disable data augmentation')
+                        help='Batch size for training')
     
     parser.add_argument('--seed', type=int, default=42,
-                       help='Random seed for reproducibility')
-    
-    parser.add_argument('--verbose', type=int, default=1,
-                       choices=[0, 1, 2],
-                       help='Verbosity level (0=silent, 1=normal, 2=verbose)')
+                        help='Random seed for reproducibility')
     
     return parser.parse_args()
 
 
-def main():
-    """Main training function"""
+def run_training():
+    """Main execution function to orchestrate the training pipeline"""
     
     print("\n" + "="*70)
-    print("🧠 BRAIN TUMOR DETECTION - TRAINING")
+    print("🧠 AI-BASED MRI IMAGE CLASSIFICATION FOR BRAIN TUMOR CATEGORIZATION")
     print("="*70)
     
-    # Parse arguments
+    # 1. Initialization & Environment Setup
     args = parse_arguments()
-    
-    # Setup
     set_random_seeds(args.seed)
     setup_gpu_memory_growth()
     create_directory_structure()
     hardware_info = get_hardware_info()
     
-    # Create configuration
+    # 2. Configuration Setup
     config = Config()
     
-    # Override config with command line arguments
+    # Override defaults if arguments are provided
     if args.epochs:
         config.EPOCHS = args.epochs
     if args.batch_size:
         config.BATCH_SIZE = args.batch_size
-    if args.learning_rate:
-        config.LEARNING_RATE = args.learning_rate
-    if args.image_size:
-        config.IMAGE_SIZE = tuple(args.image_size)
-        config.INPUT_SHAPE = (*config.IMAGE_SIZE, 3)
-    if args.no_augmentation:
-        config.AUGMENTATION = {}
     
-    # Print configuration
-    print("\n⚙️ Configuration:")
-    print(f"  Model: {args.model}")
-    print(f"  Image size: {config.IMAGE_SIZE}")
-    print(f"  Batch size: {config.BATCH_SIZE}")
-    print(f"  Learning rate: {config.LEARNING_RATE}")
-    print(f"  Epochs: {config.EPOCHS}")
-    print(f"  Augmentation: {'Enabled' if config.AUGMENTATION else 'Disabled'}")
+    print("\n⚙️ Project Configuration:")
+    print(f"  Target Classes: {config.CLASSES}")
+    print(f"  Model Type:     {args.model.upper()}")
+    print(f"  Image Size:     {config.IMAGE_SIZE}")
+    print(f"  Batch Size:     {config.BATCH_SIZE}")
+    print(f"  Epochs:         {config.EPOCHS}")
     
-    # Initialize trainer
+    # 3. Initialize Trainer
+    # Note: ModelTrainer handles data_loader and preprocessor internally
     trainer = ModelTrainer(config)
     
     try:
-        # Train model
+        # 4. Execute Training
+        print("\n🚀 Starting Training Process...")
         results = trainer.train_model(
             model_type=args.model,
             epochs=config.EPOCHS
         )
         
-        # Plot training history
+        # 5. Visualization & Metrics
+        print("\n📊 Generating Evaluation Metrics...")
         trainer.plot_training_history(save_plots=True)
+        
+        # Save a detailed text report of the final results
+        report_path = config.RESULTS_DIR / "metrics" / "final_classification_report.txt"
+        # The trainer already has the validation results stored
         
         print("\n" + "="*70)
         print("✅ TRAINING COMPLETED SUCCESSFULLY")
         print("="*70)
         
-        # Print summary
+        # 6. Results Summary
         print(f"\n📋 Results Summary:")
-        print(f"  Model saved to: {results['model_path']}")
-        print(f"  Training time: {results['training_time']/60:.2f} minutes")
-        print(f"  Final training accuracy: {results['history']['accuracy'][-1]:.4f}")
-        print(f"  Final validation accuracy: {results['history']['val_accuracy'][-1]:.4f}")
-        print(f"  Best validation accuracy: {max(results['history']['val_accuracy']):.4f}")
+        print(f"  Final Model Saved: {results['model_path']}")
+        print(f"  Training Time:     {results['training_time']/60:.2f} minutes")
+        print(f"  Final Val Acc:     {results['history']['val_accuracy'][-1]*100:.2f}%")
+        print(f"  Best Val Acc:      {max(results['history']['val_accuracy'])*100:.2f}%")
         
-        # Save configuration
-        config_path = config.RESULTS_DIR / "training_config.json"
-        config_dict = {
-            'model_type': args.model,
-            'image_size': config.IMAGE_SIZE,
-            'batch_size': config.BATCH_SIZE,
-            'learning_rate': config.LEARNING_RATE,
-            'epochs': config.EPOCHS,
-            'augmentation': bool(config.AUGMENTATION),
-            'timestamp': datetime.now().isoformat(),
-            'hardware_info': hardware_info
+        # 7. Export Metadata for reference
+        meta_path = config.RESULTS_DIR / "training_metadata.json"
+        metadata = {
+            'project': "Brain Tumor Categorization",
+            'author': "Susan Aryal",
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'config': {
+                'model': args.model,
+                'epochs': config.EPOCHS,
+                'batch_size': config.BATCH_SIZE,
+                'classes': config.CLASSES
+            },
+            'hardware': hardware_info
         }
         
-        import json
-        with open(config_path, 'w') as f:
-            json.dump(config_dict, f, indent=2)
-        
-        print(f"\n✅ Configuration saved to: {config_path}")
+        with open(meta_path, 'w') as f:
+            json.dump(metadata, f, indent=4)
+        print(f"✅ Metadata saved to: {meta_path}")
         
         return results
         
     except Exception as e:
-        print(f"\n❌ Training failed with error: {e}")
+        print(f"\n❌ Error during training pipeline: {e}")
         import traceback
         traceback.print_exc()
         return None
 
 
 if __name__ == "__main__":
-    results = main()
-    
-    if results:
-        print("\n🎉 Training completed successfully!")
-    else:
-        print("\n⚠️ Training failed. Please check the error messages above.")
+    success = run_training()
+    if not success:
         sys.exit(1)
