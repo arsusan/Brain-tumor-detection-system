@@ -1,7 +1,7 @@
 {
     "project": "Brain Tumor Categorization",
     "author": "Susan Aryal",
-    "timestamp": "2026-02-17 17:31:33",
+    "timestamp": "2026-02-18 01:19:53",
     "config": {
         "model": "cnn",
         "epochs": 30,

@@ -1,34 +1,95 @@
 "use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import api from './lib/api'; 
 import { 
-  Upload, Activity, Brain, ShieldAlert, CheckCircle, 
-  RefreshCcw, Database, BarChart3, History, Download, FileText, Info 
+  Upload, Brain, ShieldAlert, CheckCircle, 
+  RefreshCcw, Download, Info,
+  PieChart, RotateCcw, Zap, X, User, History
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 
+const BACKEND_URL = "http://127.0.0.1:8000";
+
+interface PredictionResult {
+  prediction: string;
+  probabilities: Record<string, string>;
+  heatmap_url: string;
+}
+
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
+  const [patientName, setPatientName] = useState<string>(""); 
   const [preview, setPreview] = useState<string | null>(null);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<PredictionResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
 
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0] || null;
-    setFile(selectedFile);
-    if (selectedFile) {
-      setPreview(URL.createObjectURL(selectedFile));
+  useEffect(() => {
+    return () => { if (preview) URL.revokeObjectURL(preview); };
+  }, [preview]);
+
+  // FEATURE: Reset Analysis / Analyze Again
+  const resetAnalysis = () => {
+    setFile(null);
+    setPreview(null);
+    setResult(null);
+    setPatientName("");
+  };
+
+  const generateImmediateReport = async () => {
+    if (!result || !file || !patientName) {
+      alert("Missing patient data or analysis result.");
+      return;
+    }
+    
+    try {
+      const doc = new jsPDF('p', 'mm', 'a4');
+      doc.setFillColor(30, 41, 59); 
+      doc.rect(0, 0, 210, 40, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.text("NEUROSCAN AI DIAGNOSTIC REPORT", 20, 25);
+      
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(14);
+      doc.text(`Patient Name: ${patientName.toUpperCase()}`, 20, 55);
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(12);
+      doc.text(`Diagnosis: ${result.prediction.toUpperCase()}`, 20, 65);
+      doc.text(`Date of Analysis: ${new Date().toLocaleString()}`, 20, 73);
+      doc.text(`Reference Image: ${file.name}`, 20, 81);
+
+      // FEATURE: Improved Heatmap loading for PDF
+      const heatmapUrl = `${BACKEND_URL}/${result.heatmap_url}?t=${Date.now()}`;
+      const img = new Image();
+      img.crossOrigin = "anonymous"; 
+      img.src = heatmapUrl;
+      
+      img.onload = () => {
+        doc.addImage(img, 'PNG', 45, 95, 120, 120);
+        doc.setFontSize(10);
+        doc.setTextColor(100, 116, 139);
+        doc.text("This neural activation map highlights regions used for categorization.", 105, 225, { align: 'center' });
+        
+        const sanitizedPatientName = patientName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+        const sanitizedFileName = file.name.split('.')[0];
+        doc.save(`${sanitizedPatientName}_${sanitizedFileName}_Report.pdf`);
+      };
+      
+    } catch (err) {
+      console.error("PDF Generation Error:", err);
     }
   };
 
   const handleUpload = async () => {
-    if (!file) return;
+    if (!file || !patientName) {
+        alert("Please enter a Patient Name before running the analysis.");
+        return;
+    }
     setLoading(true);
-    setResult(null); 
-
     const formData = new FormData();
     formData.append('file', file);
 
@@ -36,196 +97,164 @@ export default function Home() {
       const response = await api.post('/predict', formData);
       setResult(response.data);
     } catch (error) {
-      alert("Analysis Failed: Check if FastAPI is running on port 8000.");
+      alert("Analysis Failed. Check backend connection.");
     } finally {
       setLoading(false);
     }
   };
 
-  // --- Direct Export Logic ---
-  const generateImmediateReport = async () => {
-    if (!result) return;
-    setIsExporting(true);
-    try {
-      const doc = new jsPDF('p', 'mm', 'a4');
-      
-      // Header
-      doc.setFillColor(15, 23, 42);
-      doc.rect(0, 0, 210, 40, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(22);
-      doc.text("NEUROSCAN AI: INSTANT REPORT", 20, 25);
-
-      // Body
-      doc.setTextColor(30, 41, 59);
-      doc.setFontSize(12);
-      doc.text(`Patient File: ${file?.name || 'Unknown'}`, 20, 55);
-      doc.text(`Analysis Date: ${new Date().toLocaleString()}`, 20, 62);
-      
-      doc.setFillColor(241, 245, 249);
-      doc.roundedRect(20, 70, 170, 30, 3, 3, 'F');
-      doc.setFont("helvetica", "bold");
-      doc.text(`CLASSIFICATION: ${result.prediction.toUpperCase()}`, 30, 88);
-
-      // Image Handling
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.src = result.heatmap_url.startsWith('http') ? result.heatmap_url : `http://127.0.0.1:8000/${result.heatmap_url}`;
-      
-      await new Promise((resolve) => {
-        img.onload = () => {
-          doc.addImage(img, 'JPEG', 20, 110, 100, 100);
-          resolve(null);
-        };
-      });
-
-      doc.setFontSize(8);
-      doc.text("Disclaimer: This AI result must be verified by a neuro-radiologist.", 20, 280);
-      doc.save(`NeuroScan_Report_${Date.now()}.pdf`);
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  const getStatusColor = (pred: string) => {
-    if (pred === 'notumor') return 'text-emerald-600 bg-emerald-50 border-emerald-100';
-    return 'text-rose-600 bg-rose-50 border-rose-100';
-  };
-
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans">
-      {/* Navigation */}
-      <nav className="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between sticky top-0 z-50 shadow-sm">
-        <div className="flex items-center gap-2">
-          <div className="bg-blue-600 p-1.5 rounded-lg shadow-blue-200 shadow-lg">
-            <Brain className="text-white" size={24} />
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+      <nav className="bg-white border-b p-4 sticky top-0 z-50 shadow-sm">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-600 p-2 rounded-lg"><Brain className="text-white" size={24} /></div>
+            <span className="font-bold text-2xl text-slate-800 tracking-tight">NeuroScan <span className="text-blue-600">AI</span></span>
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-800">NeuroScan AI <span className="text-blue-600 text-sm font-black uppercase ml-1 tracking-widest">Dash</span></h1>
-        </div>
-        
-        <div className="flex items-center gap-6">
-          <Link href="/history" className="flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-blue-600 transition-colors bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
-            <History size={18} />
-            History Archive
-          </Link>
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* LEFT: UPLOAD & PREVIEW */}
+      <main className="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* LEFT: INPUT PANEL */}
         <div className="lg:col-span-4 space-y-6">
-          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
-            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-              <Database size={14} /> Scan Input
+          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
+            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+               <History size={14}/> Case Registration
             </h2>
-            
-            <div className="border-2 border-dashed border-slate-200 rounded-2xl p-4 text-center hover:border-blue-400 transition-all cursor-pointer bg-slate-50 relative min-h-[250px] flex flex-col items-center justify-center overflow-hidden group">
-              {preview ? (
-                <img src={preview} alt="Preview" className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-              ) : (
-                <div className="relative z-0 flex flex-col items-center">
-                  <div className="p-4 bg-white rounded-full shadow-sm mb-3">
-                    <Upload className="text-blue-500" size={24} />
-                  </div>
-                  <p className="text-sm font-bold text-slate-600">Drop MRI Scan Here</p>
-                  <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">PNG, JPG up to 10MB</p>
-                </div>
-              )}
-              <input type="file" accept="image/*" onChange={onFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+
+            <div className="mb-6">
+              <label className="text-[10px] font-bold text-slate-500 uppercase ml-1 mb-2 block">Patient Full Name</label>
+              <div className="relative group">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
+                <input 
+                  type="text"
+                  placeholder="e.g. John Doe"
+                  value={patientName}
+                  onChange={(e) => setPatientName(e.target.value)}
+                  disabled={!!result || loading}
+                  className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold text-slate-700"
+                />
+              </div>
             </div>
-            
+
+            <div className="space-y-4">
+               <label className="text-[10px] font-bold text-slate-500 uppercase ml-1 block">MRI Source File</label>
+               {!preview ? (
+                  <div 
+                    className={`border-2 border-dashed rounded-3xl p-10 text-center transition-colors cursor-pointer relative ${dragActive ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}
+                    onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+                    onDragLeave={() => setDragActive(false)}
+                    onDrop={(e) => {
+                        e.preventDefault(); setDragActive(false);
+                        const f = e.dataTransfer.files[0];
+                        if(f) { setFile(f); setPreview(URL.createObjectURL(f)); }
+                    }}
+                  >
+                    <Upload className="mx-auto mb-2 text-slate-300" size={32} />
+                    <p className="text-xs font-bold text-slate-500">Drop MRI or Click to Browse</p>
+                    <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if(f) { setFile(f); setPreview(URL.createObjectURL(f)); }
+                    }} />
+                  </div>
+               ) : (
+                  <div className="relative rounded-2xl overflow-hidden border-4 border-white shadow-lg">
+                    <img src={preview} className="w-full h-48 object-cover" alt="Preview" />
+                    {!result && <button onClick={() => {setFile(null); setPreview(null);}} className="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full text-rose-500 shadow-md"><X size={16}/></button>}
+                  </div>
+               )}
+            </div>
+
             <button 
               onClick={handleUpload}
-              disabled={!file || loading}
-              className="mt-6 w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-blue-600 disabled:bg-slate-100 disabled:text-slate-400 transition-all shadow-xl shadow-blue-900/10 flex justify-center items-center gap-3"
+              disabled={!file || !patientName || loading || !!result}
+              className="w-full mt-8 bg-slate-900 text-white py-5 rounded-2xl font-black flex justify-center items-center gap-3 disabled:bg-slate-100 disabled:text-slate-400 shadow-2xl transition-all active:scale-95"
             >
-              {loading ? <RefreshCcw className="animate-spin" size={18} /> : <Activity size={18} />}
-              {loading ? "Processing..." : "Run AI Diagnostics"}
+              {loading ? <RefreshCcw className="animate-spin" size={20} /> : <Zap size={20} className="text-blue-400" />}
+              {result ? "REPORT READY" : "GENERATE AI ANALYSIS"}
             </button>
+            
+            {/* FEATURE: Analyze Again Button in Input Panel */}
+            {result && (
+              <button 
+                onClick={resetAnalysis}
+                className="w-full mt-3 border-2 border-slate-100 text-slate-500 py-4 rounded-2xl font-bold flex justify-center items-center gap-2 hover:bg-slate-50 transition-all"
+              >
+                <RotateCcw size={16} /> ANALYZE AGAIN
+              </button>
+            )}
           </div>
         </div>
 
-        {/* RIGHT: LIVE REPORT */}
+        {/* RIGHT: RESULTS PANEL */}
         <div className="lg:col-span-8">
-          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden min-h-[600px] flex flex-col">
+          <div className="bg-white rounded-[2.5rem] shadow-sm border min-h-[600px] overflow-hidden">
             {result ? (
-              <>
-                <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div className="p-10 animate-in fade-in zoom-in-95 duration-500">
+                <div className="flex justify-between items-start mb-10">
                   <div>
-                    <h2 className="text-xl font-black text-slate-800 tracking-tight">Diagnostic Analysis</h2>
-                    <p className="text-sm text-slate-500 font-medium">Real-time classification from neural engine</p>
+                    <h2 className="text-4xl font-black text-slate-900 tracking-tight">Clinical Findings</h2>
+                    <p className="text-blue-600 font-bold mt-1 tracking-wide uppercase">CASE: {patientName}</p>
                   </div>
-                  <button 
-                    onClick={generateImmediateReport}
-                    disabled={isExporting}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95"
-                  >
-                    {isExporting ? <RefreshCcw size={16} className="animate-spin" /> : <Download size={16} />}
-                    Export PDF Report
-                  </button>
+                  <div className="flex gap-3">
+                    <button onClick={resetAnalysis} className="bg-slate-100 text-slate-600 px-6 py-4 rounded-2xl font-bold flex items-center gap-2 hover:bg-slate-200 transition-all">
+                      <RotateCcw size={18} /> NEW SCAN
+                    </button>
+                    <button onClick={generateImmediateReport} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all">
+                      <Download size={20} /> SAVE PDF
+                    </button>
+                  </div>
                 </div>
 
-                <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-10">
-                  <div className="space-y-8">
-                    <div className={`p-6 rounded-2xl border ${getStatusColor(result.prediction)}`}>
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-2 opacity-70">Primary Finding</p>
-                      <div className="flex items-center gap-3 text-4xl font-black uppercase tracking-tighter">
-                        {result.prediction === 'notumor' ? <CheckCircle size={36} /> : <ShieldAlert size={36} />}
-                        {result.prediction}
+                <div className="grid md:grid-cols-2 gap-12">
+                   <div className="space-y-8">
+                      <div className={`p-8 rounded-[2rem] border-4 ${result.prediction === 'notumor' ? 'bg-emerald-50 border-emerald-100 text-emerald-900' : 'bg-rose-50 border-rose-100 text-rose-900'}`}>
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-4 opacity-50">Result</p>
+                        <div className="flex items-center gap-4 text-4xl font-black">
+                          {result.prediction === 'notumor' ? <CheckCircle size={40} /> : <ShieldAlert size={40} />}
+                          {result.prediction.toUpperCase()}
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="space-y-4">
-                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                        <BarChart3 size={14} /> Probability Distribution
-                      </h3>
-                      <div className="space-y-5">
-                        {Object.entries(result.probabilities).map(([label, value]: [string, any]) => (
-                          <div key={label} className="group">
-                            <div className="flex justify-between text-[11px] font-black uppercase mb-1.5 tracking-tight">
-                              <span className="text-slate-600">{label}</span>
-                              <span className="text-blue-600">{value}</span>
+                      <div className="bg-slate-50 p-8 rounded-[2rem]">
+                         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2"><PieChart size={16}/> AI Confidence</h3>
+                         {Object.entries(result.probabilities).map(([label, val]) => (
+                            <div key={label} className="mb-4">
+                               <div className="flex justify-between text-xs font-black mb-1 uppercase tracking-tighter">
+                                  <span>{label}</span>
+                                  <span>{val}</span>
+                               </div>
+                               <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full transition-all duration-1000 ${result.prediction === label ? 'bg-blue-600' : 'bg-slate-400'}`} 
+                                    style={{width: val}}
+                                  ></div>
+                               </div>
                             </div>
-                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200/50">
-                              <div className="bg-blue-600 h-full transition-all duration-1000 ease-out" style={{ width: value }} />
-                            </div>
-                          </div>
-                        ))}
+                         ))}
                       </div>
-                    </div>
-                  </div>
+                   </div>
 
-                  <div className="space-y-6 text-center">
-                    <div className="relative">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-left flex items-center gap-2">
-                         Heatmap Localization
-                      </p>
-                      <div className="rounded-[2.5rem] overflow-hidden border-[12px] border-slate-50 shadow-2xl bg-slate-900 group">
+                   <div className="space-y-6">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Neural Heatmap (Grad-CAM)</p>
+                      <div className="bg-slate-900 p-2 rounded-[2.5rem] shadow-2xl aspect-square flex items-center justify-center border-8 border-white">
                         <img 
-                          src={result.heatmap_url.startsWith('http') ? result.heatmap_url : `http://127.0.0.1:8000/${result.heatmap_url}`} 
-                          alt="Localization" 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+                          src={`${BACKEND_URL}/${result.heatmap_url}?t=${Date.now()}`} 
+                          className="w-full h-full object-contain rounded-2xl" 
+                          alt="Heatmap" 
                         />
                       </div>
-                    </div>
-                    <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl flex gap-3 text-left">
-                      <Info className="text-amber-500 shrink-0" size={18} />
-                      <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
-                        <b>Clinical Note:</b> The heatmap highlights regions of interest that influenced the AI decision. High intensity (red) indicates suspicious tissue density.
-                      </p>
-                    </div>
-                  </div>
+                      <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                        <Info size={20} className="text-blue-500" />
+                        <p className="text-[10px] font-medium text-blue-800 leading-relaxed">Activation zones highlight morphological features used by the model.</p>
+                      </div>
+                   </div>
                 </div>
-              </>
+              </div>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-20">
-                <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-6 border border-slate-100">
-                  <Brain size={48} strokeWidth={1.5} className="text-slate-300" />
-                </div>
-                <h3 className="text-xl font-black text-slate-800">Neural Engine Standby</h3>
-                <p className="text-slate-400 max-w-xs mt-2 text-sm">
-                  Please upload a high-resolution MRI scan to begin the automated diagnostic sequence.
-                </p>
+              <div className="h-full flex flex-col items-center justify-center p-20 text-slate-200">
+                <Brain size={120} className="mb-8 opacity-20" />
+                <p className="text-xl font-black text-slate-300 italic tracking-tight uppercase">Awaiting Analysis</p>
               </div>
             )}
           </div>
