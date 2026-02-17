@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 class Config:
-    """Configuration class for the project"""
+    """Configuration class for the 4-Class Brain Tumor Project"""
     
     # Project paths
     PROJECT_ROOT = Path(__file__).parent.parent
@@ -19,20 +19,23 @@ class Config:
         dir_path.mkdir(parents=True, exist_ok=True)
     
     # Dataset settings
-    IMAGE_SIZE = (128, 128)  # Reduced for faster training
+    IMAGE_SIZE = (128, 128)
     BATCH_SIZE = 16
     VALIDATION_SPLIT = 0.15
     TEST_SPLIT = 0.15
     
-    # Model settings
+    # --- UPDATED FOR 4-CLASS CATEGORIZATION ---
     INPUT_SHAPE = (*IMAGE_SIZE, 3)
-    NUM_CLASSES = 2  # Binary: Tumor vs No Tumor
+    NUM_CLASSES = 4  # Changed from 2 to 4
+    CLASSES = ['glioma', 'meningioma', 'notumor', 'pituitary'] 
+    
+    # Model settings
     DROPOUT_RATE = 0.4
     LEARNING_RATE = 0.0001
     
     # Training settings
-    EPOCHS = 20
-    PATIENCE = 6  # Early stopping patience
+    EPOCHS = 30  # Increased for multi-class complexity
+    PATIENCE = 8 
     MIN_DELTA = 0.001
     
     # Augmentation settings
@@ -48,7 +51,6 @@ class Config:
     }
     
     # Evaluation settings
-    THRESHOLD = 0.5  # Binary classification threshold
     METRICS = ['accuracy', 'precision', 'recall', 'auc']
     
     # Logging
@@ -64,14 +66,9 @@ class Config:
             cls.RESULTS_DIR / "metrics",
             cls.RESULTS_DIR / "predictions"
         ]
-        
         for directory in directories:
             directory.mkdir(parents=True, exist_ok=True)
-        
-        print("✅ Project directories created successfully")
+        print("✅ Project directories updated for 4-class classification")
 
-# Initialize paths
 Config.setup_paths()
-
-# Export configuration
 __all__ = ['Config']

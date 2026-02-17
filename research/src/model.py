@@ -9,21 +9,21 @@ from .config import Config
 
 
 class BrainTumorModel:
-    """Brain tumor classification model builder"""
+    """Brain tumor classification model builder (4-Class Multiclass Version)"""
     
     def __init__(self, config: Config):
         self.config = config
         self.model = None
     
     def build_cnn(self, input_shape: tuple = None, dropout_rate: float = None) -> keras.Model:
-        """Build a custom CNN model from scratch"""
+        """Build a custom CNN model from scratch for 4-class classification"""
         
         if input_shape is None:
             input_shape = self.config.INPUT_SHAPE
         if dropout_rate is None:
             dropout_rate = self.config.DROPOUT_RATE
         
-        print(f"🔧 Building CNN with input shape: {input_shape}")
+        print(f"🔧 Building 4-Class CNN with input shape: {input_shape}")
         
         model = models.Sequential([
             # Block 1
@@ -69,20 +69,20 @@ class BrainTumorModel:
             layers.Activation('relu'),
             layers.Dropout(dropout_rate * 0.6),
             
-            # Output layer
-            layers.Dense(1, activation='sigmoid')
-        ], name="BrainTumorCNN")
+            # Output layer: Changed to 4 units with Softmax for Multiclass
+            layers.Dense(self.config.NUM_CLASSES, activation='softmax')
+        ], name="BrainTumorCNN_4Class")
         
         self.model = model
         return model
     
     def build_efficient_cnn(self, input_shape: tuple = None) -> keras.Model:
-        """Build a more efficient CNN using depthwise separable convolutions"""
+        """Build a more efficient CNN using depthwise separable convolutions for 4-class classification"""
         
         if input_shape is None:
             input_shape = self.config.INPUT_SHAPE
         
-        print(f"🔧 Building Efficient CNN with input shape: {input_shape}")
+        print(f"🔧 Building Efficient 4-Class CNN with input shape: {input_shape}")
         
         inputs = keras.Input(shape=input_shape)
         
@@ -121,16 +121,16 @@ class BrainTumorModel:
         x = layers.Activation('relu')(x)
         x = layers.Dropout(0.3)(x)
         
-        # Output
-        outputs = layers.Dense(1, activation='sigmoid')(x)
+        # Output: Changed to 4 units with Softmax for Multiclass
+        outputs = layers.Dense(self.config.NUM_CLASSES, activation='softmax')(x)
         
-        model = keras.Model(inputs=inputs, outputs=outputs, name="EfficientBrainTumorCNN")
+        model = keras.Model(inputs=inputs, outputs=outputs, name="EfficientBrainTumorCNN_4Class")
         self.model = model
         return model
     
     def compile_model(self, model: Optional[keras.Model] = None, 
-                     learning_rate: float = None) -> keras.Model:
-        """Compile the model with appropriate settings"""
+                       learning_rate: float = None) -> keras.Model:
+        """Compile the model with Categorical Crossentropy for 4-class classification"""
         
         if model is None:
             model = self.model
@@ -145,25 +145,21 @@ class BrainTumorModel:
             epsilon=1e-07
         )
         
-        # Compile model
+        # Compile model with categorical_crossentropy
         model.compile(
             optimizer=optimizer,
-            loss='binary_crossentropy',
+            loss='categorical_crossentropy',
             metrics=[
                 'accuracy',
                 keras.metrics.Precision(name='precision'),
                 keras.metrics.Recall(name='recall'),
-                keras.metrics.AUC(name='auc'),
-                keras.metrics.TruePositives(name='tp'),
-                keras.metrics.TrueNegatives(name='tn'),
-                keras.metrics.FalsePositives(name='fp'),
-                keras.metrics.FalseNegatives(name='fn')
+                keras.metrics.AUC(name='auc')
             ]
         )
         
-        print("✅ Model compiled successfully")
+        print("✅ Model compiled successfully for 4-class classification")
         print(f"  Optimizer: Adam (lr={learning_rate})")
-        print(f"  Loss: Binary Crossentropy")
+        print(f"  Loss: Categorical Crossentropy")
         
         return model
     
@@ -174,7 +170,6 @@ class BrainTumorModel:
         
         model.summary()
         
-        # Calculate parameter statistics
         trainable_params = sum([tf.keras.backend.count_params(w) for w in model.trainable_weights])
         non_trainable_params = sum([tf.keras.backend.count_params(w) for w in model.non_trainable_weights])
         

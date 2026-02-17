@@ -6,24 +6,27 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Optional
 import numpy as np
 from tqdm import tqdm
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.utils import to_categorical
 
 from .config import Config
 
 
 class BrainTumorDataLoader:
-    """Data loader for brain tumor MRI dataset"""
+    """Data loader for 4-class brain tumor MRI dataset (Glioma, Meningioma, Pituitary, No Tumor)"""
     
     def __init__(self, config: Config):
         self.config = config
-        self.processor = None  # Will be set by preprocessing module
+        self.processor = None  # Will be set by trainer.py
         
     def load_dataset_stats(self) -> Dict[str, Dict]:
-        """Load and display dataset statistics"""
+        """Load and display dataset statistics for all 4 categories"""
         
         stats = {}
-        categories = ['glioma', 'meningioma', 'notumor', 'pituitary']
+        # Uses classes from config: ['glioma', 'meningioma', 'notumor', 'pituitary']
+        categories = self.config.CLASSES
         
-        print("\n📊 Dataset Statistics:")
+        print("\n📊 Dataset Statistics (4-Class):")
         print("=" * 60)
         
         for set_type in ['Training', 'Testing']:
@@ -58,96 +61,85 @@ class BrainTumorDataLoader:
         
         return stats
     
-    def load_binary_dataset(self, set_type: str = 'Training') -> Tuple[List[str], List[int]]:
+    def load_categorical_dataset(self, set_type: str = 'Training') -> Tuple[List[str], np.ndarray]:
         """
-        Load dataset for binary classification
-        Returns: (image_paths, labels) where 1=Tumor, 0=No Tumor
+        Load dataset for 4-class categorical classification
+        Returns: (image_paths, one_hot_labels)
         """
         
         set_path = self.config.DATA_DIR / set_type
         if not set_path.exists():
-            raise FileNotFoundError(f"Dataset not found at {set_path}")
+            raise FileNotFoundError(f"Dataset folder not found at {set_path}")
         
         image_paths = []
         labels = []
         
-        # Tumor categories (label = 1)
-        tumor_categories = ['glioma', 'meningioma', 'pituitary']
+        # Mapping class names to integers based on Config order
+        class_map = {label: i for i, label in enumerate(self.config.CLASSES)}
         
-        print(f"\n📂 Loading {set_type} dataset...")
+        print(f"\n📂 Loading {set_type} dataset (4 Classes)...")
         
-        # Load tumor images
-        for tumor_cat in tqdm(tumor_categories, desc="Loading tumor images"):
-            cat_path = set_path / tumor_cat
+        for category in self.config.CLASSES:
+            cat_path = set_path / category
             if not cat_path.exists():
-                print(f"  ⚠️ Missing: {cat_path}")
+                print(f"  ⚠️ Missing Folder: {cat_path}")
                 continue
             
             image_files = [f for f in os.listdir(cat_path) 
                           if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
             
-            for img_file in image_files:
+            for img_file in tqdm(image_files, desc=f"Loading {category}"):
                 image_paths.append(str(cat_path / img_file))
-                labels.append(1)  # Tumor
+                labels.append(class_map[category])
         
-        # Load no tumor images (label = 0)
-        no_tumor_path = set_path / 'notumor'
-        if no_tumor_path.exists():
-            image_files = [f for f in os.listdir(no_tumor_path) 
-                          if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
-            
-            for img_file in tqdm(image_files, desc="Loading no tumor images"):
-                image_paths.append(str(no_tumor_path / img_file))
-                labels.append(0)  # No Tumor
-        else:
-            print(f"  ⚠️ Missing: {no_tumor_path}")
+        # Convert to numpy arrays
+        image_paths = np.array(image_paths)
+        labels = np.array(labels)
         
-        # Shuffle the dataset
-        combined = list(zip(image_paths, labels))
-        random.shuffle(combined)
-        image_paths, labels = zip(*combined)
+        # Shuffle paths and labels together
+        indices = np.arange(len(image_paths))
+        np.random.shuffle(indices)
+        image_paths = image_paths[indices]
+        labels = labels[indices]
+        
+        # --- CRITICAL: Convert integer labels to One-Hot Encoding ---
+        # Example: 2 (notumor) becomes [0, 0, 1, 0]
+        one_hot_labels = to_categorical(labels, num_classes=self.config.NUM_CLASSES)
         
         print(f"✅ Loaded {len(image_paths)} images from {set_type}")
-        print(f"  Tumor: {sum(labels)}")
-        print(f"  No Tumor: {len(labels) - sum(labels)}")
-        
-        return list(image_paths), list(labels)
+        return image_paths.tolist(), one_hot_labels
     
-    def create_train_val_split(self, image_paths: List[str], labels: List[int], 
-                              val_split: float = 0.15) -> Tuple:
-        """Split data into training and validation sets"""
-        
-        from sklearn.model_selection import train_test_split
+    def create_train_val_split(self, image_paths: List[str], labels: np.ndarray, 
+                               val_split: float = 0.15) -> Tuple:
+        """Split data into training and validation sets using stratification"""
         
         train_paths, val_paths, train_labels, val_labels = train_test_split(
             image_paths, labels, 
             test_size=val_split, 
-            stratify=labels,
+            stratify=labels, # Ensures 4-class balance in both sets
             random_state=42
         )
         
-        print(f"\n📊 Train/Validation Split:")
+        print(f"\n📊 Multiclass Train/Validation Split:")
         print(f"  Training samples: {len(train_paths)}")
         print(f"  Validation samples: {len(val_paths)}")
-        print(f"  Training Tumor/No Tumor: {sum(train_labels)}/{len(train_labels)-sum(train_labels)}")
-        print(f"  Validation Tumor/No Tumor: {sum(val_labels)}/{len(val_labels)-sum(val_labels)}")
         
         return train_paths, val_paths, train_labels, val_labels
     
-    def create_data_generator(self, image_paths: List[str], labels: List[int], 
-                             batch_size: int, augment: bool = False, 
-                             shuffle: bool = True):
-        """Create a data generator for efficient memory usage"""
+    def create_data_generator(self, image_paths: List[str], labels: np.ndarray, 
+                               batch_size: int, augment: bool = False, 
+                               shuffle: bool = True):
+        """Create a data generator for categorical training"""
         
         import tensorflow as tf
-        from .preprocessing import ImagePreprocessor
         
-        # Initialize processor if not already done
+        # Ensure processor is attached
         if self.processor is None:
+            from .preprocessing import ImagePreprocessor
             self.processor = ImagePreprocessor(self.config)
         
         def generator():
-            """Generator function for streaming data"""
+            """Generator function for streaming multiclass data"""
             num_samples = len(image_paths)
             indices = list(range(num_samples))
             
@@ -161,31 +153,34 @@ class BrainTumorDataLoader:
                     if len(batch_indices) == 0:
                         continue
                     
-                    # Get batch paths and labels
                     batch_paths = [image_paths[i] for i in batch_indices]
                     batch_labels = [labels[i] for i in batch_indices]
                     
-                    # Process batch
+                    # Process batch using the preprocessor
+                    # Labels are already one-hot encoded from load_categorical_dataset
                     batch_images, batch_labels_arr = self.processor.process_batch(
                         batch_paths, batch_labels, augment=augment
                     )
                     
                     yield batch_images, batch_labels_arr
         
-        return generator()
-    
-    def get_class_distribution(self, labels: List[int]) -> Dict[str, float]:
-        """Calculate class distribution"""
-        total = len(labels)
-        tumor_count = sum(labels)
-        no_tumor_count = total - tumor_count
+        # Create TF Dataset from generator
+        dataset = tf.data.Dataset.from_generator(
+            generator,
+            output_signature=(
+                tf.TensorSpec(shape=(None, *self.config.INPUT_SHAPE), dtype=tf.float32),
+                tf.TensorSpec(shape=(None, self.config.NUM_CLASSES), dtype=tf.float32)
+            )
+        )
         
-        return {
-            'tumor': tumor_count,
-            'no_tumor': no_tumor_count,
-            'tumor_percentage': tumor_count / total * 100,
-            'no_tumor_percentage': no_tumor_count / total * 100
-        }
+        return dataset.prefetch(tf.data.AUTOTUNE)
+
+    def get_class_distribution(self, labels: np.ndarray) -> Dict[str, int]:
+        """Calculate distribution across the 4 classes"""
+        # labels are one-hot, so we sum along axis 0
+        counts = np.sum(labels, axis=0)
+        dist = {self.config.CLASSES[i]: int(counts[i]) for i in range(len(counts))}
+        return dist
 
 
 # Export class

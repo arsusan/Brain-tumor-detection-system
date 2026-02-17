@@ -1,26 +1,22 @@
 {
-  "training_date": "2026-02-07T00:37:23.504401",
-  "training_time_seconds": 2228.179860830307,
-  "training_time_minutes": 37.13633101383845,
-  "model_type": "binary_classification",
-  "input_shape": [
-    128,
-    128,
-    3
-  ],
-  "parameters": {
-    "trainable": 616865,
-    "non_trainable": 1664,
-    "total": 618529
-  },
-  "config": {
-    "image_size": [
-      128,
-      128
-    ],
-    "batch_size": 16,
-    "learning_rate": 0.0001,
-    "dropout_rate": 0.4,
-    "epochs": 20
-  }
+    "project": "Brain Tumor Categorization",
+    "author": "Susan Aryal",
+    "timestamp": "2026-02-17 17:31:33",
+    "config": {
+        "model": "cnn",
+        "epochs": 30,
+        "batch_size": 16,
+        "classes": [
+            "glioma",
+            "meningioma",
+            "notumor",
+            "pituitary"
+        ]
+    },
+    "hardware": {
+        "tensorflow_version": "2.20.0",
+        "python_version": "3.13.12",
+        "gpu_available": false,
+        "cpu_count": 8
+    }
 }
