@@ -62,7 +62,6 @@ export default function Home() {
       doc.text(`Date of Analysis: ${new Date().toLocaleString()}`, 20, 73);
       doc.text(`Reference Image: ${file.name}`, 20, 81);
 
-      // FEATURE: Improved Heatmap loading for PDF
       const heatmapUrl = `${BACKEND_URL}/${result.heatmap_url}?t=${Date.now()}`;
       const img = new Image();
       img.crossOrigin = "anonymous"; 
@@ -84,16 +83,23 @@ export default function Home() {
     }
   };
 
+  /**
+   * UPDATED FEATURE: Sending user_name to Backend
+   * This aligns with the new relational database schema (User -> Scans)
+   */
   const handleUpload = async () => {
     if (!file || !patientName) {
         alert("Please enter a Patient Name before running the analysis.");
         return;
     }
     setLoading(true);
+    
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('user_name', patientName); // Link to DFD Level 0 'User' Entity
 
     try {
+      // POST request to the updated FastAPI endpoint
       const response = await api.post('/predict', formData);
       setResult(response.data);
     } catch (error) {
@@ -174,7 +180,6 @@ export default function Home() {
               {result ? "REPORT READY" : "GENERATE AI ANALYSIS"}
             </button>
             
-            {/* FEATURE: Analyze Again Button in Input Panel */}
             {result && (
               <button 
                 onClick={resetAnalysis}
@@ -221,14 +226,14 @@ export default function Home() {
                          {Object.entries(result.probabilities).map(([label, val]) => (
                             <div key={label} className="mb-4">
                                <div className="flex justify-between text-xs font-black mb-1 uppercase tracking-tighter">
-                                  <span>{label}</span>
-                                  <span>{val}</span>
+                                 <span>{label}</span>
+                                 <span>{val}</span>
                                </div>
                                <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                                  <div 
+                                 <div 
                                     className={`h-full transition-all duration-1000 ${result.prediction === label ? 'bg-blue-600' : 'bg-slate-400'}`} 
                                     style={{width: val}}
-                                  ></div>
+                                 ></div>
                                </div>
                             </div>
                          ))}
@@ -239,7 +244,7 @@ export default function Home() {
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Neural Heatmap (Grad-CAM)</p>
                       <div className="bg-slate-900 p-2 rounded-[2.5rem] shadow-2xl aspect-square flex items-center justify-center border-8 border-white">
                         <img 
-                          src={`${BACKEND_URL}/${result.heatmap_url}?t=${Date.now()}`} 
+                          src={`${result.heatmap_url}${result.heatmap_url.includes('?') ? '&' : '?'}t=${Date.now()}`} 
                           className="w-full h-full object-contain rounded-2xl" 
                           alt="Heatmap" 
                         />
