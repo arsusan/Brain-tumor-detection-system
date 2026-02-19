@@ -37,6 +37,28 @@ export default function Home() {
     setPatientName("");
   };
 
+  // ✅ Helper: Load heatmap as base64 for jsPDF
+  const loadHeatmapAsBase64 = (url: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = url;
+
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject("Canvas context failed");
+        ctx.drawImage(img, 0, 0);
+        const dataURL = canvas.toDataURL("image/png");
+        resolve(dataURL);
+      };
+
+      img.onerror = (err) => reject(err);
+    });
+  };
+
   const generateImmediateReport = async () => {
     if (!result || !file || !patientName) {
       alert("Missing patient data or analysis result.");
@@ -62,21 +84,21 @@ export default function Home() {
       doc.text(`Date of Analysis: ${new Date().toLocaleString()}`, 20, 73);
       doc.text(`Reference Image: ${file.name}`, 20, 81);
 
-      const heatmapUrl = `${BACKEND_URL}/${result.heatmap_url}?t=${Date.now()}`;
-      const img = new Image();
-      img.crossOrigin = "anonymous"; 
-      img.src = heatmapUrl;
+      const heatmapUrl = result.heatmap_url.startsWith("http")
+        ? `${result.heatmap_url}?t=${Date.now()}`
+        : `${BACKEND_URL}/${result.heatmap_url}?t=${Date.now()}`;
+
+      // ✅ Load heatmap as Base64
+      const heatmapBase64 = await loadHeatmapAsBase64(heatmapUrl);
+
+      doc.addImage(heatmapBase64, 'PNG', 45, 95, 120, 120);
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text("This neural activation map highlights regions used for categorization.", 105, 225, { align: 'center' });
       
-      img.onload = () => {
-        doc.addImage(img, 'PNG', 45, 95, 120, 120);
-        doc.setFontSize(10);
-        doc.setTextColor(100, 116, 139);
-        doc.text("This neural activation map highlights regions used for categorization.", 105, 225, { align: 'center' });
-        
-        const sanitizedPatientName = patientName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-        const sanitizedFileName = file.name.split('.')[0];
-        doc.save(`${sanitizedPatientName}_${sanitizedFileName}_Report.pdf`);
-      };
+      const sanitizedPatientName = patientName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+      const sanitizedFileName = file.name.split('.')[0];
+      doc.save(`${sanitizedPatientName}_${sanitizedFileName}_Report.pdf`);
       
     } catch (err) {
       console.error("PDF Generation Error:", err);
@@ -96,7 +118,7 @@ export default function Home() {
     
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('user_name', patientName); // Link to DFD Level 0 'User' Entity
+    formData.append('user_name', patientName); 
 
     try {
       // POST request to the updated FastAPI endpoint
@@ -243,10 +265,14 @@ export default function Home() {
                    <div className="space-y-6">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Neural Heatmap (Grad-CAM)</p>
                       <div className="bg-slate-900 p-2 rounded-[2.5rem] shadow-2xl aspect-square flex items-center justify-center border-8 border-white">
-                        <img 
-                          src={`${result.heatmap_url}${result.heatmap_url.includes('?') ? '&' : '?'}t=${Date.now()}`} 
-                          className="w-full h-full object-contain rounded-2xl" 
-                          alt="Heatmap" 
+                        <img
+                          src={
+                            result.heatmap_url.startsWith("http")
+                              ? `${result.heatmap_url}?t=${Date.now()}`
+                              : `${BACKEND_URL}/${result.heatmap_url}?t=${Date.now()}`
+                          }
+                          className="w-full h-full object-contain rounded-2xl"
+                          alt="Heatmap"
                         />
                       </div>
                       <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-2xl border border-blue-100">
