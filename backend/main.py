@@ -14,9 +14,15 @@ from research.src.model import BrainTumorModel
 from research.src.config import Config
 from research.src.preprocessing import ImagePreprocessor
 from .explainability import generate_gradcam, superimpose_heatmap
-from .database import init_db, get_db, ScanResult 
+from .database import init_db, get_db, ScanResult, User
+from fastapi import Form
 
 app = FastAPI()
+app = FastAPI()
+
+# ADD THIS LINE HERE:
+init_db()
+
 CLASS_LABELS = ['glioma', 'meningioma', 'notumor', 'pituitary']
 
 # Enable CORS for Next.js
@@ -52,8 +58,21 @@ except Exception as e:
     print(f"⚠️ Warning: Could not find 'conv2d_6'. Check model.summary(). Error: {e}")
 
 @app.post("/predict")
-async def predict(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def predict(
+    user_name: str = Form(...), # NEW: Capture name from DFD/Frontend
+    file: UploadFile = File(...), 
+    db: Session = Depends(get_db)
+):
     try:
+        # 1. USER HANDLING (Relational Logic)
+        # Find existing user or create a new one based on the name provided
+        user = db.query(User).filter(User.name == user_name).first()
+        if not user:
+            user = User(name=user_name)
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
         # 2. File Handling
         scan_id = str(uuid.uuid4())
         file_ext = os.path.splitext(file.filename)[1]
@@ -76,33 +95,33 @@ async def predict(file: UploadFile = File(...), db: Session = Depends(get_db)):
 
         # 4. HEATMAP LOGIC
         heatmap_filename = f"heatmap_{scan_id}.png"
-        # We store the local path for DB, but return a URL to frontend
         heatmap_path = f"static/results/{heatmap_filename}"
         
         try:
-            # Generate heatmap using the optimized Functional API logic
             heatmap = generate_gradcam(img_tensor, model, last_conv_layer_name="conv2d_6") 
             
             if heatmap is not None and np.max(heatmap) > 0:
                 superimpose_heatmap(file_path, heatmap, save_path=heatmap_path)
                 print(f"✅ Heatmap saved to {heatmap_path}")
             else:
-                print("⚠️ Heatmap generated was empty. Using original image as fallback.")
+                print("⚠️ Heatmap empty. Fallback to original.")
                 shutil.copy(file_path, heatmap_path) 
         except Exception as grad_err:
             print(f"❌ Grad-CAM Error: {grad_err}")
             shutil.copy(file_path, heatmap_path)
 
-        # 5. DATABASE INTEGRATION
+        # 5. DATABASE INTEGRATION (Relational Save)
         new_record = ScanResult(
+            user_id=user.id,        # NEW: Link scan to the User
             filename=unique_filename,
-            prediction=label,
+            prediction=label,       # e.g., 'glioma'
             confidence=confidence,
             prob_glioma=float(preds[0]),
             prob_meningioma=float(preds[1]),
             prob_notumor=float(preds[2]),
             prob_pituitary=float(preds[3]),
-            heatmap_url=heatmap_path 
+            heatmap_url=heatmap_path,
+            original_image_url=file_path 
         )
         db.add(new_record)
         db.commit()
@@ -111,6 +130,7 @@ async def predict(file: UploadFile = File(...), db: Session = Depends(get_db)):
         # 6. RESPONSE
         return {
             "id": new_record.id,
+            "user_name": user.name, # Confirms which user the scan belongs to
             "prediction": label,
             "confidence": f"{confidence*100:.2f}%",
             "probabilities": {
@@ -119,7 +139,6 @@ async def predict(file: UploadFile = File(...), db: Session = Depends(get_db)):
                 "notumor": f"{float(preds[2])*100:.1f}%",
                 "pituitary": f"{float(preds[3])*100:.1f}%"
             },
-            # Return absolute URL so the frontend can display it immediately
             "heatmap_url": f"http://127.0.0.1:8000/{heatmap_path}",
             "created_at": new_record.created_at
         }
@@ -129,10 +148,25 @@ async def predict(file: UploadFile = File(...), db: Session = Depends(get_db)):
         return {"error": str(e)}
 
 # History and Delete endpoints remain the same...
-
 @app.get("/history")
 async def get_history(db: Session = Depends(get_db)):
-    return db.query(ScanResult).order_by(ScanResult.created_at.desc()).all()
+    # JOIN query to fetch scan results AND the owner's name
+    results = db.query(ScanResult, User.name).\
+        join(User, ScanResult.user_id == User.id).\
+        order_by(ScanResult.created_at.desc()).all()
+    
+    # Format the response to include the name for the frontend table
+    history = []
+    for scan, name in results:
+        history.append({
+            "id": scan.id,
+            "user_name": name, # NEW: Send user name to history dashboard
+            "prediction": scan.prediction,
+            "confidence": f"{scan.confidence*100:.2f}%",
+            "created_at": scan.created_at,
+            "heatmap_url": f"http://127.0.0.1:8000/{scan.heatmap_url}"
+        })
+    return history
 
 @app.delete("/history/{scan_id}")
 async def delete_scan(scan_id: int, db: Session = Depends(get_db)):
