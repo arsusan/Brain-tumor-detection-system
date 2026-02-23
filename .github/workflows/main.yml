@@ -24,6 +24,12 @@ jobs:
       - name: Run Pytest
         run: pytest backend/tests/
 
+      - name: Run Backend Unit Tests (Pytest)
+        run: |
+          # Adding backend to PYTHONPATH ensures tests can import your modules
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          python -m pytest backend/tests/
+
   # 2. Frontend Verification (Next.js)
   frontend-tests:
     runs-on: ubuntu-latest
