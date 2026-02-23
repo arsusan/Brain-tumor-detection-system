@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -8,6 +8,9 @@ import os
 import numpy as np
 import tensorflow as tf
 import uuid
+import cloudinary
+import cloudinary.uploader
+from dotenv import load_dotenv
 
 # Internal Project Imports
 from research.src.model import BrainTumorModel
@@ -15,57 +18,60 @@ from research.src.config import Config
 from research.src.preprocessing import ImagePreprocessor
 from .explainability import generate_gradcam, superimpose_heatmap
 from .database import init_db, get_db, ScanResult, User
-from fastapi import Form
+
+# 1. INITIALIZATION & CONFIGURATION
+load_dotenv()
+
+# Cloudinary Setup
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+    secure=True
+)
 
 app = FastAPI()
-app = FastAPI()
-
-# ADD THIS LINE HERE:
 init_db()
 
 CLASS_LABELS = ['glioma', 'meningioma', 'notumor', 'pituitary']
 
-# Enable CORS for Next.js
+# 2. CORS CONFIGURATION
+# Update allow_origins with your Vercel URL once you deploy the frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Setup directories
-os.makedirs("static/uploads", exist_ok=True)
-os.makedirs("static/results", exist_ok=True)
+# Create a temporary directory for local processing before uploading to cloud
+TEMP_DIR = "static/temp"
+os.makedirs(TEMP_DIR, exist_ok=True)
+# Keep static mount for any fallback local needs
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# 1. Initialize Configuration and Model
+# 3. AI MODEL LOADING
 cfg = Config()
 preprocessor = ImagePreprocessor(cfg)
 model_builder = BrainTumorModel(cfg)
 
-# --- Pointing to your NEW model ---
 MODEL_PATH = r"models/final_model_cnn_20260218_011908.keras"
 model = model_builder.load_model(MODEL_PATH)
 
-# Since it's a Functional Model, the graph is ready instantly!
 print(f"🚀 Model loaded successfully from {MODEL_PATH}")
-try:
-    # Target the layer name from your model.py
-    _ = model.get_layer("conv2d_6")
-    print("✅ Grad-CAM Target Layer 'conv2d_6' detected.")
-except Exception as e:
-    print(f"⚠️ Warning: Could not find 'conv2d_6'. Check model.summary(). Error: {e}")
 
+# 4. PREDICTION ENDPOINT (WITH CLOUD STORAGE)
 @app.post("/predict")
 async def predict(
-    user_name: str = Form(...), # NEW: Capture name from DFD/Frontend
-    file: UploadFile = File(...), 
+    user_name: str = Form(...),
+    file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
+    temp_file_path = ""
+    local_heatmap_path = ""
     try:
-        # 1. USER HANDLING (Relational Logic)
-        # Find existing user or create a new one based on the name provided
+        # A. USER HANDLING
         user = db.query(User).filter(User.name == user_name).first()
         if not user:
             user = User(name=user_name)
@@ -73,115 +79,110 @@ async def predict(
             db.commit()
             db.refresh(user)
 
-        # 2. File Handling
+        # B. TEMPORARY FILE HANDLING
         scan_id = str(uuid.uuid4())
         file_ext = os.path.splitext(file.filename)[1]
-        unique_filename = f"{scan_id}{file_ext}"
-        file_path = f"static/uploads/{unique_filename}"
+        temp_file_path = os.path.join(TEMP_DIR, f"{scan_id}{file_ext}")
         
-        with open(file_path, "wb") as buffer:
+        with open(temp_file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # 3. Preprocessing & Prediction
-        img_array = preprocessor.preprocess_single(file_path, augment=False)
+        # C. UPLOAD ORIGINAL TO CLOUDINARY
+        upload_result = cloudinary.uploader.upload(temp_file_path, folder="neuroscan/uploads")
+        original_url = upload_result['secure_url']
+
+        # D. PREPROCESSING & PREDICTION
+        img_array = preprocessor.preprocess_single(temp_file_path, augment=False)
         img_tensor = tf.convert_to_tensor(img_array, dtype=tf.float32)
         if len(img_tensor.shape) == 3:
             img_tensor = tf.expand_dims(img_tensor, axis=0)
         
-        preds = model.predict(img_tensor, verbose=0)[0] 
+        preds = model.predict(img_tensor, verbose=0)[0]
         pred_idx = np.argmax(preds)
         label = CLASS_LABELS[pred_idx]
         confidence = float(preds[pred_idx])
 
-        # 4. HEATMAP LOGIC
-        heatmap_filename = f"heatmap_{scan_id}.png"
-        heatmap_path = f"static/results/{heatmap_filename}"
+        # E. HEATMAP LOGIC
+        final_heatmap_url = original_url # Fallback if notumor or error
         
-        try:
-            heatmap = generate_gradcam(img_tensor, model, last_conv_layer_name="conv2d_6") 
-            
-            if heatmap is not None and np.max(heatmap) > 0:
-                superimpose_heatmap(file_path, heatmap, save_path=heatmap_path)
-                print(f"✅ Heatmap saved to {heatmap_path}")
-            else:
-                print("⚠️ Heatmap empty. Fallback to original.")
-                shutil.copy(file_path, heatmap_path) 
-        except Exception as grad_err:
-            print(f"❌ Grad-CAM Error: {grad_err}")
-            shutil.copy(file_path, heatmap_path)
+        if label != 'notumor':
+            local_heatmap_path = os.path.join(TEMP_DIR, f"heatmap_{scan_id}.png")
+            try:
+                heatmap = generate_gradcam(img_tensor, model, last_conv_layer_name="conv2d_final")
+                if heatmap is not None and np.max(heatmap) > 0:
+                    superimpose_heatmap(temp_file_path, heatmap, save_path=local_heatmap_path)
+                    
+                    # Upload Heatmap to Cloudinary
+                    hm_upload = cloudinary.uploader.upload(local_heatmap_path, folder="neuroscan/results")
+                    final_heatmap_url = hm_upload['secure_url']
+                else:
+                    print("⚠️ Heatmap generation failed, using original.")
+            except Exception as grad_err:
+                print(f"❌ Grad-CAM Error: {grad_err}")
 
-        # 5. DATABASE INTEGRATION (Relational Save)
+        # F. DATABASE INTEGRATION
         new_record = ScanResult(
-            user_id=user.id,        # NEW: Link scan to the User
-            filename=unique_filename,
-            prediction=label,       # e.g., 'glioma'
+            user_id=user.id,
+            filename=file.filename,
+            prediction=label,
             confidence=confidence,
             prob_glioma=float(preds[0]),
             prob_meningioma=float(preds[1]),
             prob_notumor=float(preds[2]),
             prob_pituitary=float(preds[3]),
-            heatmap_url=heatmap_path,
-            original_image_url=file_path 
+            heatmap_url=final_heatmap_url,
+            original_image_url=original_url
         )
         db.add(new_record)
         db.commit()
         db.refresh(new_record)
 
-        # 6. RESPONSE
+        # G. CLEANUP TEMPORARY FILES
+        if os.path.exists(temp_file_path): os.remove(temp_file_path)
+        if local_heatmap_path and os.path.exists(local_heatmap_path): os.remove(local_heatmap_path)
+
         return {
             "id": new_record.id,
-            "user_name": user.name, # Confirms which user the scan belongs to
+            "user_name": user.name,
             "prediction": label,
             "confidence": f"{confidence*100:.2f}%",
-            "probabilities": {
-                "glioma": f"{float(preds[0])*100:.1f}%",
-                "meningioma": f"{float(preds[1])*100:.1f}%",
-                "notumor": f"{float(preds[2])*100:.1f}%",
-                "pituitary": f"{float(preds[3])*100:.1f}%"
-            },
-            "heatmap_url": f"http://127.0.0.1:8000/{heatmap_path}",
+            "probabilities": {label: f"{prob*100:.1f}%" for label, prob in zip(CLASS_LABELS, preds)},
+            "heatmap_url": final_heatmap_url,
             "created_at": new_record.created_at
         }
     except Exception as e:
+        # Ensure cleanup even if error occurs
+        if temp_file_path and os.path.exists(temp_file_path): os.remove(temp_file_path)
         import traceback
         traceback.print_exc()
         return {"error": str(e)}
 
-# History and Delete endpoints remain the same...
+# 5. HISTORY ENDPOINT
 @app.get("/history")
 async def get_history(db: Session = Depends(get_db)):
-    # JOIN query to fetch scan results AND the owner's name
     results = db.query(ScanResult, User.name).\
         join(User, ScanResult.user_id == User.id).\
         order_by(ScanResult.created_at.desc()).all()
     
-    # Format the response to include the name for the frontend table
-    history = []
-    for scan, name in results:
-        history.append({
-            "id": scan.id,
-            "user_name": name, # NEW: Send user name to history dashboard
-            "prediction": scan.prediction,
-            "confidence": f"{scan.confidence*100:.2f}%",
-            "created_at": scan.created_at,
-            "heatmap_url": f"http://127.0.0.1:8000/{scan.heatmap_url}"
-        })
-    return history
+    return [{
+        "id": scan.id,
+        "user_name": name,
+        "prediction": scan.prediction,
+        "confidence": f"{scan.confidence*100:.2f}%",
+        "created_at": scan.created_at,
+        "heatmap_url": scan.heatmap_url # Cloudinary URL
+    } for scan, name in results]
 
+# 6. DELETE ENDPOINT
 @app.delete("/history/{scan_id}")
 async def delete_scan(scan_id: int, db: Session = Depends(get_db)):
     record = db.query(ScanResult).filter(ScanResult.id == scan_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
-    
-    # Physical file cleanup
-    for path in [f"static/uploads/{record.filename}", record.heatmap_url]:
-        if path and os.path.exists(path):
-            os.remove(path)
             
     db.delete(record)
     db.commit()
-    return {"message": "Successfully deleted record"}
+    return {"message": "Successfully deleted record (Cloud URLs remain in Cloudinary storage)"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)

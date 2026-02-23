@@ -1,0 +1,30 @@
+# Local environment and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Sensitive data (Hugging Face uses "Secrets" instead)
+.env
+
+# Local storage and test data
+# We ignore these because we are now using Cloudinary
+static/uploads/*
+static/results/*
+uploads/
+temp/
+*.log
+
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# OS files
+.DS_Store
+Thumbs.db
