@@ -33,3 +33,6 @@ build/
 
 
 .ipynb_checkpoints
+
+research/results/plots/
+frontend/public/plots/
