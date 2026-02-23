@@ -1,22 +1,64 @@
-name: Sync to Hugging Face Hub
+name: NeuroScan AI CI/CD Pipeline
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
 jobs:
-  sync-to-hub:
+  # 1. Backend Verification
+  backend-tests:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          lfs: true
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run Pytest
+        run: pytest backend/tests/
+
+  # 2. Frontend Verification
+  frontend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+      - name: Install and Test
+        run: |
+          cd frontend
+          npm install
+          npm test
+
+  # 3. Final Deployment (Only runs if tests pass)
+  deploy-and-sync:
+    needs: [backend-tests, frontend-tests]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           lfs: true
 
-      - name: Push to hub
+      - name: Push to Hugging Face Hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # These lines fix the "missing or corrupt local objects" error
+          # 1. Fix LFS pointer issues for the runner
           git config lfs.allowincompletepush true
-          git push --force https://arsusan:$HF_TOKEN@huggingface.co/spaces/arsusan/brain-tumor-detection-api main
+
+          # 2. Add the HF Space as a remote
+          git remote add hf https://arsusan:$HF_TOKEN@huggingface.co/spaces/arsusan/NeuroScan
+
+          # 3. Force push to ensure the Hub matches your clean local state
+          git push --force hf main
