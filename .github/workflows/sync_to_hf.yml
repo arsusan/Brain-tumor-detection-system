@@ -12,8 +12,11 @@ jobs:
         with:
           fetch-depth: 0
           lfs: true
+
       - name: Push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        # Replace 'arsusan/brain-tumor-detection-api' with your actual HF path
-        run: git push --force https://arsusan:$HF_TOKEN@huggingface.co/spaces/arsusan/brain-tumor-detection-api main
+        run: |
+          # These lines fix the "missing or corrupt local objects" error
+          git config lfs.allowincompletepush true
+          git push --force https://arsusan:$HF_TOKEN@huggingface.co/spaces/arsusan/brain-tumor-detection-api main
