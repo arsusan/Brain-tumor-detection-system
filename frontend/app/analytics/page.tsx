@@ -2,16 +2,20 @@
 
 import React from 'react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
-  AreaChart, Area
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
 import { Target, Activity, Brain, ShieldCheck, Info, AlertTriangle, CheckCircle } from 'lucide-react';
 
+// Centralized asset management for your Final Year Project
+const CLOUDINARY_ASSETS = {
+  trainingHistory: "https://res.cloudinary.com/djxhxejwr/image/upload/v1771883852/training_history_az8vjj.png",
+  // Note: Since you haven't provided the Matrix URL yet, I've used your sample results URL as a placeholder
+  confusionMatrix: "https://res.cloudinary.com/djxhxejwr/image/upload/v1771883851/sample_test_results_bkc3ea.png", 
+};
+
 export default function AnalyticsPage() {
-  // Colors mapped to the 4 classes
   const COLORS = ['#3b82f6', '#10b981', '#6366f1', '#f43f5e'];
 
-  // Data synchronized with evaluation_report.txt 
   const classData = [
     { name: 'Pituitary', recall: 0.97, precision: 0.90, f1: 0.94 },
     { name: 'No Tumor', recall: 0.91, precision: 0.93, f1: 0.92 },
@@ -26,37 +30,13 @@ export default function AnalyticsPage() {
         <p className="text-slate-500 font-medium">Model Version: CNN-2026-02-18 | Dataset N=656</p>
       </header>
 
-      {/* 1. KEY PERFORMANCE INDICATORS  */}
+      {/* 1. KEY PERFORMANCE INDICATORS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
-          { 
-            label: 'Total Accuracy', 
-            val: '86%', 
-            icon: Target, 
-            color: 'text-blue-600', 
-            def: 'Overall correct diagnoses across 656 test samples.' 
-          },
-          { 
-            label: 'Precision (Avg)', 
-            val: '0.86', 
-            icon: Activity, 
-            color: 'text-emerald-600', 
-            def: 'Reliability: The weighted average precision across all categories.' 
-          },
-          { 
-            label: 'Recall (Avg)', 
-            val: '0.86', 
-            icon: Brain, 
-            color: 'text-violet-600', 
-            def: 'Sensitivity: The weighted average recall across all categories.' 
-          },
-          { 
-            label: 'F1-Score (Avg)', 
-            val: '0.86', 
-            icon: ShieldCheck, 
-            color: 'text-rose-600', 
-            def: 'The harmonic mean of Precision and Recall.' 
-          },
+          { label: 'Total Accuracy', val: '86%', icon: Target, color: 'text-blue-600', def: 'Overall correct diagnoses across 656 test samples.' },
+          { label: 'Precision (Avg)', val: '0.86', icon: Activity, color: 'text-emerald-600', def: 'Reliability: The weighted average precision across all categories.' },
+          { label: 'Recall (Avg)', val: '0.86', icon: Brain, color: 'text-violet-600', def: 'Sensitivity: The weighted average recall across all categories.' },
+          { label: 'F1-Score (Avg)', val: '0.86', icon: ShieldCheck, color: 'text-rose-600', def: 'The harmonic mean of Precision and Recall.' },
         ].map((m, i) => (
           <div key={i} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm group relative">
             <div className="flex justify-between mb-4">
@@ -94,9 +74,6 @@ export default function AnalyticsPage() {
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <p className="mt-4 text-xs text-slate-500 italic text-center">
-            Interpretation: The model is most sensitive to Pituitary tumors (97%) and Healthy tissue (91%).
-          </p>
         </div>
 
         <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] flex flex-col justify-center relative overflow-hidden">
@@ -106,9 +83,8 @@ export default function AnalyticsPage() {
           <AlertTriangle className="text-amber-400 mb-4" size={32} />
           <h3 className="text-lg font-bold mb-2 text-white">Critical Confusion Insight</h3>
           <p className="text-sm text-slate-400 leading-relaxed">
-            Evaluation identifies <b>Glioma (70% recall)</b> as the primary clinical challenge[cite: 6]. 
-            The Confusion Matrix reveals <b>45 Gliomas</b> were misclassified as Meningiomas. 
-            Conversely, the model is highly reliable for Pituitary tumors, missing only 4 cases out of 149[cite: 7].
+            Evaluation identifies <b>Glioma (70% recall)</b> as the primary clinical challenge. 
+            The Confusion Matrix reveals 45 Gliomas were misclassified as Meningiomas.
           </p>
           <div className="mt-6 p-4 bg-slate-800 rounded-2xl border border-slate-700">
              <p className="text-[10px] font-bold text-amber-400 uppercase mb-1">Recommendation</p>
@@ -117,23 +93,33 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* 3. VISUAL EVIDENCE (Conf. Matrix & History) */}
+      {/* 3. VISUAL EVIDENCE (Using Cloudinary) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-4">
             <div className="flex items-center justify-between px-2">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Statistical Convergence</p>
                 <span className="text-[10px] bg-blue-100 text-blue-600 px-2 py-1 rounded-full font-bold">Training History</span>
             </div>
-            <img src="/plots/training_history.png" alt="Training History" className="rounded-[2rem] border border-slate-200 shadow-lg w-full transition-transform hover:scale-[1.01]" />
-            <p className="text-[10px] text-slate-400 italic px-2">History indicates high validation volatility; suggesting potential for further learning rate optimization.</p>
+            {/* Updated to Cloudinary URL */}
+            <img 
+              src={CLOUDINARY_ASSETS.trainingHistory} 
+              alt="Training History" 
+              className="rounded-[2rem] border border-slate-200 shadow-lg w-full transition-transform hover:scale-[1.01]" 
+            />
+            <p className="text-[10px] text-slate-400 italic px-2">History indicates high validation volatility; fetched from secure Cloudinary storage.</p>
         </div>
         <div className="space-y-4">
             <div className="flex items-center justify-between px-2">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Diagnostic Confusion Map</p>
                 <span className="text-[10px] bg-rose-100 text-rose-600 px-2 py-1 rounded-full font-bold">N=656 Matrix</span>
             </div>
-            <img src="/plots/final_confusion_matrix.png" alt="Confusion Matrix" className="rounded-[2rem] border border-slate-200 shadow-lg w-full transition-transform hover:scale-[1.01]" />
-            <p className="text-[10px] text-slate-400 italic px-2">Diagonal intensity confirms 174 correct "No Tumor" identifications and 145 Pituitary successes.</p>
+            {/* Updated to Cloudinary URL */}
+            <img 
+              src={CLOUDINARY_ASSETS.confusionMatrix} 
+              alt="Confusion Matrix" 
+              className="rounded-[2rem] border border-slate-200 shadow-lg w-full transition-transform hover:scale-[1.01]" 
+            />
+            <p className="text-[10px] text-slate-400 italic px-2">Diagonal intensity confirms correct identifications; externalized for optimized deployment.</p>
         </div>
       </div>
     </div>
