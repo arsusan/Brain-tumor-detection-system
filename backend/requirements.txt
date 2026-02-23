@@ -15,7 +15,7 @@ Pillow>=9.0.0
 cloudinary==1.41.0
 
 # Core AI (Versions pinned for stability)
-tensorflow-cpu==2.15.0
+tensorflow==2.15.0
 numpy==1.26.4
 scikit-learn>=1.0.0
 

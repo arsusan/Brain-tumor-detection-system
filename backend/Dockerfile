@@ -1,5 +1,5 @@
 # Use python-slim for a smaller footprint
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 # Set up a new user 'user' with UID 1000
 RUN useradd -m -u 1000 user
