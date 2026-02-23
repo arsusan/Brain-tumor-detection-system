@@ -1,0 +1,52 @@
+name: NeuroScan AI CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Test the Backend and ML Logic
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install ML Dependencies
+        run: pip install -r neural_engine/requirements-ml.txt
+
+      - name: Run Backend Unit Tests (Pytest)
+        # Testing image normalization and model prediction logic [cite: 357, 361]
+        run: pytest backend/tests/
+
+  # Test the Frontend
+  frontend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+
+      - name: Install and Test React Components
+        # Testing component rendering and validation logic [cite: 363, 364]
+        run: |
+          cd frontend
+          npm install
+          npm test
+
+  # Deployment Stage
+  deploy:
+    needs: [backend-tests, frontend-tests]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Trigger Render Deployment
+        # You can use a Deploy Hook for your FastAPI backend on Render
+        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
