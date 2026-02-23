@@ -7,24 +7,25 @@ on:
     branches: [main]
 
 jobs:
-  # Test the Backend and ML Logic
   backend-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          lfs: true # Ensures LFS pointers are handled
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.12"
 
       - name: Install ML Dependencies
-        run: pip install -r neural_engine/requirements-ml.txt
+        # Note: Changed to use the backend folder as root
+        run: pip install -r backend/requirements.txt
 
       - name: Run Backend Unit Tests (Pytest)
-        # Testing image normalization and model prediction logic [cite: 357, 361]
         run: pytest backend/tests/
 
-  # Test the Frontend
   frontend-tests:
     runs-on: ubuntu-latest
     steps:
@@ -35,18 +36,29 @@ jobs:
           node-version: "20"
 
       - name: Install and Test React Components
-        # Testing component rendering and validation logic [cite: 363, 364]
         run: |
           cd frontend
           npm install
           npm test
 
-  # Deployment Stage
   deploy:
     needs: [backend-tests, frontend-tests]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
-      - name: Trigger Render Deployment
-        # You can use a Deploy Hook for your FastAPI backend on Render
-        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Push to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          # The key fix for your LFS "Missing Object" error
+          git config lfs.allowincompletepush true
+
+          # Force push the backend folder to Hugging Face
+          # Since your HF Space expects the Dockerfile at the root, 
+          # we push the contents of your 'backend' directory.
+          git subtree push --prefix backend https://arsusan:$HF_TOKEN@huggingface.co/spaces/arsusan/brain-tumor-detection-api main
