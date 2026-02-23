@@ -5,15 +5,26 @@ import api from './lib/api';
 import { 
   Upload, Brain, ShieldAlert, CheckCircle, 
   RefreshCcw, Download, Info,
-  PieChart, RotateCcw, Zap, X, User, History
+  PieChart, RotateCcw, Zap, X, User, History as HistoryIcon, Trash2
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 
-const BACKEND_URL = "http://127.0.0.1:8000";
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 interface PredictionResult {
+  id?: number;
   prediction: string;
   probabilities: Record<string, string>;
+  heatmap_url: string;
+  created_at?: string;
+}
+
+interface HistoryItem {
+  id: number;
+  user_name: string;
+  prediction: string;
+  confidence: string;
+  created_at: string;
   heatmap_url: string;
 }
 
@@ -24,12 +35,24 @@ export default function Home() {
   const [result, setResult] = useState<PredictionResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Fetch History from Backend
+  const fetchHistory = async () => {
+    try {
+      const res = await api.get('/history');
+      setHistory(res.data);
+    } catch (err) {
+      console.error("Failed to fetch history:", err);
+    }
+  };
 
   useEffect(() => {
+    fetchHistory();
     return () => { if (preview) URL.revokeObjectURL(preview); };
-  }, [preview]);
+  }, [preview, result]);
 
-  // FEATURE: Reset Analysis / Analyze Again
   const resetAnalysis = () => {
     setFile(null);
     setPreview(null);
@@ -37,12 +60,11 @@ export default function Home() {
     setPatientName("");
   };
 
-  // ✅ Helper: Load heatmap as base64 for jsPDF
   const loadHeatmapAsBase64 = (url: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.src = url;
+      img.crossOrigin = "anonymous"; 
+      img.src = url.startsWith("http") ? url : `${BACKEND_URL}/${url}`;
 
       img.onload = () => {
         const canvas = document.createElement("canvas");
@@ -51,23 +73,21 @@ export default function Home() {
         const ctx = canvas.getContext("2d");
         if (!ctx) return reject("Canvas context failed");
         ctx.drawImage(img, 0, 0);
-        const dataURL = canvas.toDataURL("image/png");
-        resolve(dataURL);
+        resolve(canvas.toDataURL("image/png"));
       };
-
       img.onerror = (err) => reject(err);
     });
   };
 
   const generateImmediateReport = async () => {
-    if (!result || !file || !patientName) {
+    if (!result || !patientName) {
       alert("Missing patient data or analysis result.");
       return;
     }
     
     try {
       const doc = new jsPDF('p', 'mm', 'a4');
-      doc.setFillColor(30, 41, 59); 
+      doc.setFillColor(15, 23, 42); 
       doc.rect(0, 0, 210, 40, 'F');
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(22);
@@ -79,49 +99,40 @@ export default function Home() {
       doc.text(`Patient Name: ${patientName.toUpperCase()}`, 20, 55);
       
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(12);
+      doc.setFontSize(11);
       doc.text(`Diagnosis: ${result.prediction.toUpperCase()}`, 20, 65);
-      doc.text(`Date of Analysis: ${new Date().toLocaleString()}`, 20, 73);
-      doc.text(`Reference Image: ${file.name}`, 20, 81);
+      doc.text(`Date of Analysis: ${result.created_at ? new Date(result.created_at).toLocaleString() : new Date().toLocaleString()}`, 20, 72);
 
       const heatmapUrl = result.heatmap_url.startsWith("http")
-        ? `${result.heatmap_url}?t=${Date.now()}`
-        : `${BACKEND_URL}/${result.heatmap_url}?t=${Date.now()}`;
+        ? result.heatmap_url
+        : `${BACKEND_URL}/${result.heatmap_url}`;
 
-      // ✅ Load heatmap as Base64
       const heatmapBase64 = await loadHeatmapAsBase64(heatmapUrl);
-
-      doc.addImage(heatmapBase64, 'PNG', 45, 95, 120, 120);
+      doc.addImage(heatmapBase64, 'PNG', 45, 90, 120, 120);
+      
       doc.setFontSize(10);
       doc.setTextColor(100, 116, 139);
-      doc.text("This neural activation map highlights regions used for categorization.", 105, 225, { align: 'center' });
+      doc.text("AI-generated report for clinical reference only.", 105, 220, { align: 'center' });
       
-      const sanitizedPatientName = patientName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-      const sanitizedFileName = file.name.split('.')[0];
-      doc.save(`${sanitizedPatientName}_${sanitizedFileName}_Report.pdf`);
-      
+      const sanitizedName = patientName.replace(/\s+/g, '_');
+      doc.save(`NeuroScan_Report_${sanitizedName}.pdf`);
     } catch (err) {
-      console.error("PDF Generation Error:", err);
+      console.error("PDF Error:", err);
+      alert("Could not generate PDF. Please ensure heatmap is loaded.");
     }
   };
 
-  /**
-   * UPDATED FEATURE: Sending user_name to Backend
-   * This aligns with the new relational database schema (User -> Scans)
-   */
   const handleUpload = async () => {
     if (!file || !patientName) {
         alert("Please enter a Patient Name before running the analysis.");
         return;
     }
     setLoading(true);
-    
     const formData = new FormData();
     formData.append('file', file);
     formData.append('user_name', patientName); 
 
     try {
-      // POST request to the updated FastAPI endpoint
       const response = await api.post('/predict', formData);
       setResult(response.data);
     } catch (error) {
@@ -131,23 +142,38 @@ export default function Home() {
     }
   };
 
+  const deleteHistoryItem = async (id: number) => {
+    if (!confirm("Delete this record permanently?")) return;
+    try {
+      await api.delete(`/history/${id}`);
+      fetchHistory();
+    } catch (err) {
+      alert("Failed to delete record.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      <nav className="bg-white border-b p-4 sticky top-0 z-50 shadow-sm">
+      <nav className="bg-white/80 backdrop-blur-md border-b p-4 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="bg-blue-600 p-2 rounded-lg"><Brain className="text-white" size={24} /></div>
             <span className="font-bold text-2xl text-slate-800 tracking-tight">NeuroScan <span className="text-blue-600">AI</span></span>
           </div>
+          <button 
+            onClick={() => setShowHistory(!showHistory)}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-slate-100 font-bold text-sm hover:bg-slate-200 transition-all border border-slate-200"
+          >
+            <HistoryIcon size={18} /> {showHistory ? "Back to Scan" : "Scan History"}
+          </button>
         </div>
       </nav>
 
       <main className="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* LEFT: INPUT PANEL */}
-        <div className="lg:col-span-4 space-y-6">
+        <div className={`lg:col-span-4 space-y-6 ${showHistory ? 'hidden lg:block' : ''}`}>
           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
             <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-               <History size={14}/> Case Registration
+               <User size={14}/> Case Registration
             </h2>
 
             <div className="mb-6">
@@ -213,10 +239,45 @@ export default function Home() {
           </div>
         </div>
 
-        {/* RIGHT: RESULTS PANEL */}
         <div className="lg:col-span-8">
           <div className="bg-white rounded-[2.5rem] shadow-sm border min-h-[600px] overflow-hidden">
-            {result ? (
+            {showHistory ? (
+              <div className="p-10 animate-in slide-in-from-bottom-5 duration-500">
+                <h2 className="text-3xl font-black text-slate-900 mb-8 flex items-center gap-3">
+                  <HistoryIcon size={32} className="text-blue-600"/> Patient Archive
+                </h2>
+                <div className="grid gap-4">
+                  {history.length === 0 ? (
+                    <p className="text-slate-400 italic">No records found.</p>
+                  ) : (
+                    history.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between p-6 bg-slate-50 rounded-3xl border border-slate-100 hover:border-blue-200 transition-all group">
+                        <div className="flex items-center gap-5">
+                          <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-200 uppercase">
+                            {item.user_name?.[0] || 'P'}
+                          </div>
+                          <div>
+                            <p className="font-black text-slate-800 uppercase text-sm tracking-tight">{item.user_name}</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">{new Date(item.created_at).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase ${item.prediction === 'notumor' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                            {item.prediction}
+                          </span>
+                          <button 
+                            onClick={() => deleteHistoryItem(item.id)}
+                            className="p-2.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : result ? (
               <div className="p-10 animate-in fade-in zoom-in-95 duration-500">
                 <div className="flex justify-between items-start mb-10">
                   <div>
@@ -245,7 +306,7 @@ export default function Home() {
 
                       <div className="bg-slate-50 p-8 rounded-[2rem]">
                          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2"><PieChart size={16}/> AI Confidence</h3>
-                         {Object.entries(result.probabilities).map(([label, val]) => (
+                         {result.probabilities && Object.entries(result.probabilities).map(([label, val]) => (
                             <div key={label} className="mb-4">
                                <div className="flex justify-between text-xs font-black mb-1 uppercase tracking-tighter">
                                  <span>{label}</span>
@@ -264,14 +325,14 @@ export default function Home() {
 
                    <div className="space-y-6">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Neural Heatmap (Grad-CAM)</p>
-                      <div className="bg-slate-900 p-2 rounded-[2.5rem] shadow-2xl aspect-square flex items-center justify-center border-8 border-white">
+                      <div className="bg-slate-900 p-2 rounded-[2.5rem] shadow-2xl aspect-square flex items-center justify-center border-8 border-white overflow-hidden">
                         <img
                           src={
                             result.heatmap_url.startsWith("http")
-                              ? `${result.heatmap_url}?t=${Date.now()}`
+                              ? result.heatmap_url
                               : `${BACKEND_URL}/${result.heatmap_url}?t=${Date.now()}`
                           }
-                          className="w-full h-full object-contain rounded-2xl"
+                          className="w-full h-full object-contain"
                           alt="Heatmap"
                         />
                       </div>
