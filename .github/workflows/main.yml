@@ -44,7 +44,6 @@ jobs:
   deploy:
     needs: [backend-tests, frontend-tests]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v3
         with:
@@ -55,10 +54,6 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # The key fix for your LFS "Missing Object" error
           git config lfs.allowincompletepush true
-
-          # Force push the backend folder to Hugging Face
-          # Since your HF Space expects the Dockerfile at the root, 
-          # we push the contents of your 'backend' directory.
+          # This command sends ONLY the contents of the backend folder to HF
           git subtree push --prefix backend https://arsusan:$HF_TOKEN@huggingface.co/spaces/arsusan/brain-tumor-detection-api main
