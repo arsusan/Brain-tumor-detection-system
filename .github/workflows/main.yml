@@ -66,7 +66,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          lfs: false # We set this to false to stop Git from hunting for missing objects
+          lfs: True # We set this to false to stop Git from hunting for missing objects
 
       - name: Push to Hugging Face Hub (Clean Sync)
         env:
@@ -81,6 +81,7 @@ jobs:
           mkdir temp_sync
           rsync -av . temp_sync --exclude .git
           cd temp_sync
+          ls -lh models/
 
           # 3. Initialize a BRAND NEW git repo in this folder
           git init
