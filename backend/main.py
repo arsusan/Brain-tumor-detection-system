@@ -45,6 +45,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+def home():
+    """Health check endpoint for Hugging Face and deployment monitoring"""
+    return {
+        "status": "success", 
+        "message": "NeuroScan AI Backend is Running",
+        "mode": "Testing" if os.getenv("TESTING") == "True" else "Production"
+    }
+
 # Create a temporary directory for local processing before uploading to cloud
 TEMP_DIR = "static/temp"
 os.makedirs(TEMP_DIR, exist_ok=True)

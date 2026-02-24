@@ -36,3 +36,4 @@ build/
 
 research/results/plots/
 frontend/public/plots/
+!models/final_model_cnn_20260218_011908.keras
