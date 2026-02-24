@@ -11,6 +11,8 @@ import keras
 import uuid
 import cloudinary
 import cloudinary.uploader
+import h5py
+import json
 from dotenv import load_dotenv
 
 # Internal Project Imports
@@ -70,6 +72,30 @@ MODEL_PATH = os.path.join(os.path.dirname(BASE_DIR), "models", "final_model_cnn_
 model = None
 preprocessor = None
 
+def safe_load_model(path):
+    try:
+        # Standard load
+        return keras.models.load_model(path)
+    except Exception as e:
+        print(f"⚠️ Initial load failed: {e}")
+        
+        # If the error is the specific 'quantization_config' keyword mismatch
+        if "quantization_config" in str(e):
+            print("🔧 Attempting to bypass quantization_config mismatch...")
+            
+            # This 'custom_objects' trick tells Keras: 
+            # "If you see a Dense layer with weird arguments, use this fixed version instead"
+            class FixedDense(keras.layers.Dense):
+                def __init__(self, *args, **kwargs):
+                    kwargs.pop('quantization_config', None)
+                    super().__init__(*args, **kwargs)
+
+            return keras.models.load_model(
+                path, 
+                custom_objects={"Dense": FixedDense}
+            )
+        raise e
+    
 if os.getenv("TESTING") == "True":
     # --- LIGHTWEIGHT TEST SETUP ---
     # We create a 5KB model instead of loading a 100MB one
@@ -85,7 +111,7 @@ elif os.path.exists(MODEL_PATH):
     cfg = Config()
     preprocessor = ImagePreprocessor(cfg)
     # Use keras.models instead of tf.keras.models
-    model = keras.models.load_model(MODEL_PATH) 
+    model = safe_load_model(MODEL_PATH) 
     print(f"🚀 Model loaded successfully from {MODEL_PATH}")
 else:
     print(f"❌ ERROR: Model file not found at {MODEL_PATH}")
