@@ -29,6 +29,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # We do this AFTER installing requirements so code changes don't trigger re-installation of libraries
 COPY --chown=user:user . .
 
+
+RUN mkdir -p /home/user/.cache && chmod -R 777 /home/user/.cache
+RUN chmod -R 777 /app
 # 6. Switch to non-root user
 USER user
 

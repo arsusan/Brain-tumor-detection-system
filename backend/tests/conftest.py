@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from backend.database import Base, get_db
 from backend.main import app
 
-# 1. Setup the In-Memory Test Database
+# 1. Setup a clean, In-Memory SQLite database for tests
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
 engine = create_engine(
@@ -15,7 +15,7 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_database():
-    # This force-creates the 'users' and 'scans' tables in the test memory
+    # Force-create the 'users' and 'scans' tables before any tests run
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
@@ -25,14 +25,12 @@ def db_session():
     connection = engine.connect()
     transaction = connection.begin()
     session = TestingSessionLocal(bind=connection)
-    
     yield session
-    
     session.close()
     transaction.rollback()
     connection.close()
 
-# 2. Override the get_db dependency in the FastAPI app
+# 2. Tell FastAPI to use our Test Database instead of the real one
 @pytest.fixture(autouse=True)
 def override_get_db():
     def _get_test_db():
