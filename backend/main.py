@@ -63,16 +63,20 @@ MODEL_PATH = os.path.join(os.path.dirname(BASE_DIR), "models", "final_model_cnn_
 
 print(f"🔍 Searching for model at: {MODEL_PATH}")
 
-if not os.path.exists(MODEL_PATH):
-    # This print will show up in your GitHub Action logs to help you debug
-    print(f"❌ ERROR: Model file not found! Current directory: {os.getcwd()}")
-    # Optional: List files in root to see where the runner is looking
-    print(f"Root contents: {os.listdir(os.path.dirname(BASE_DIR))}")
-    # Initialize a dummy variable so the app doesn't crash during 'import' in tests
-    model = None 
-else:
-    model = model_builder.load_model(MODEL_PATH)
+if os.getenv("TESTING") == "True":
+    # Create a tiny dummy model so the app has something to interact with
+    # without loading the 100MB file
+    model = tf.keras.Sequential([
+        tf.keras.layers.InputLayer(input_shape=(224, 224, 3)),
+        tf.keras.layers.Dense(4, activation='softmax')
+    ])
+    print("running in TESTING mode: Dummy model initialized.")
+elif os.path.exists(MODEL_PATH):
+    model = tf.keras.models.load_model(MODEL_PATH)
     print(f"🚀 Model loaded successfully from {MODEL_PATH}")
+else:
+    print(f"❌ ERROR: Model file not found at {MODEL_PATH}")
+    model = None
 
 
 # 4. PREDICTION ENDPOINT (WITH CLOUD STORAGE)

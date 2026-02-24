@@ -1,3 +1,5 @@
+import os
+os.environ["TESTING"] = "True"
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
