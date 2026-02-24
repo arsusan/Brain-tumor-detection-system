@@ -18,15 +18,15 @@ if DATABASE_URL.startswith("postgres://"):
 
 # 3. CREATE THE ENGINE WITH SMART SWITCHING
 # We check the URL type to avoid passing Postgres-only arguments to SQLite
-if DATABASE_URL.startswith("sqlite"):
-    # Settings for GitHub Actions / Testing (Fast, In-Memory)
+# database.py
+if "sqlite" in DATABASE_URL:
+    # SQLite does NOT support pooling (pool_size/max_overflow)
     engine = create_engine(
         DATABASE_URL, 
         connect_args={"check_same_thread": False}
     )
 else:
-    # Settings for Production PostgreSQL / Supabase
-    # pool_pre_ping: prevents 'connection closed' errors on cloud platforms
+    # PostgreSQL DOES support/need pooling
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,

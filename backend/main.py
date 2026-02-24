@@ -56,10 +56,24 @@ cfg = Config()
 preprocessor = ImagePreprocessor(cfg)
 model_builder = BrainTumorModel(cfg)
 
-MODEL_PATH = r"models/final_model_cnn_20260218_011908.keras"
-model = model_builder.load_model(MODEL_PATH)
+# Get the absolute path to the 'backend' directory where this file lives
+BASE_DIR = os.path.dirname(os.path.abspath(__file__)) 
+# Go up one level to the project root, then into the 'models' folder
+MODEL_PATH = os.path.join(os.path.dirname(BASE_DIR), "models", "final_model_cnn_20260218_011908.keras")
 
-print(f"🚀 Model loaded successfully from {MODEL_PATH}")
+print(f"🔍 Searching for model at: {MODEL_PATH}")
+
+if not os.path.exists(MODEL_PATH):
+    # This print will show up in your GitHub Action logs to help you debug
+    print(f"❌ ERROR: Model file not found! Current directory: {os.getcwd()}")
+    # Optional: List files in root to see where the runner is looking
+    print(f"Root contents: {os.listdir(os.path.dirname(BASE_DIR))}")
+    # Initialize a dummy variable so the app doesn't crash during 'import' in tests
+    model = None 
+else:
+    model = model_builder.load_model(MODEL_PATH)
+    print(f"🚀 Model loaded successfully from {MODEL_PATH}")
+
 
 # 4. PREDICTION ENDPOINT (WITH CLOUD STORAGE)
 @app.post("/predict")
