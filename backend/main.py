@@ -62,33 +62,45 @@ os.makedirs(TEMP_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # 3. AI MODEL LOADING & PREPROCESSOR SETUP
-# --- THE SURGICAL PATCH START ---
-@keras.utils.register_keras_serializable()
-class PatchedDense(keras.layers.Dense):
-    """Intercepts and removes the quantization_config argument during loading"""
-    def __init__(self, *args, **kwargs):
-        kwargs.pop('quantization_config', None)
-        super().__init__(*args, **kwargs)
-
-def safe_load_model(path):
-    """Loads the Keras model while bypassing version-mismatch errors"""
+def safe_load_model(path, cfg):
+    """Reconstructs the model architecture and loads weights to bypass Keras version errors."""
     try:
-        # We inject the PatchedDense into the loading process
+        print("🏗️ Reconstructing architecture from BrainTumorModel...")
+        # 1. Initialize the builder
+        tumor_model_wrapper = BrainTumorModel(config=cfg)
+        
+        # 2. Build the architecture (creates the layers)
+        # Using build_cnn() because it creates the Functional model needed for Grad-CAM
+        model = tumor_model_wrapper.build_cnn()
+        
+        # 3. Load the weights from your .keras file
+        print(f"📥 Injecting weights from {path}...")
+        model.load_weights(path)
+        
+        return model
+    except Exception as e:
+        print(f"⚠️ Architecture weight injection failed: {e}. Falling back to patched load...")
+        
+        # Emergency Fallback: Standard load with a patch for quantization_config
+        @keras.utils.register_keras_serializable()
+        class PatchedDense(keras.layers.Dense):
+            def __init__(self, *args, **kwargs):
+                kwargs.pop('quantization_config', None)
+                super().__init__(*args, **kwargs)
+        
         return keras.models.load_model(
             path, 
             custom_objects={"Dense": PatchedDense},
             compile=False
         )
-    except Exception as e:
-        print(f"❌ Critical Load Error: {e}")
-        raise e
-# --- THE SURGICAL PATCH END ---
 
+# Paths and State
 BASE_DIR = os.path.dirname(os.path.abspath(__file__)) 
 MODEL_PATH = os.path.join(os.path.dirname(BASE_DIR), "models", "final_model_cnn_20260218_011908.keras")
 
 model = None
 preprocessor = None
+cfg = Config()
 
 if os.getenv("TESTING") == "True":
     model = tf.keras.Sequential([
@@ -100,11 +112,11 @@ if os.getenv("TESTING") == "True":
 
 elif os.path.exists(MODEL_PATH):
     try:
-        cfg = Config()
         preprocessor = ImagePreprocessor(cfg)
-        print(f"🔄 Attempting to load model with patch: {MODEL_PATH}")
-        model = safe_load_model(MODEL_PATH) 
-        print(f"🚀 Model loaded successfully from {MODEL_PATH}")
+        print(f"🔄 Attempting Architecture + Weights load: {MODEL_PATH}")
+        model = safe_load_model(MODEL_PATH, cfg)
+        if model:
+            print(f"🚀 Model successfully initialized and ready for inference.")
     except Exception as final_err:
         print(f"❌ CRITICAL ERROR during model loading: {final_err}")
 else:
