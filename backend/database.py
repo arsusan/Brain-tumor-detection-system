@@ -1,10 +1,11 @@
 import os
-import datetime
+import datetime, timezone
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 from dotenv import load_dotenv
 
+Base = declarative_base()
 # 1. LOAD ENVIRONMENT VARIABLES
 load_dotenv()
 
@@ -44,7 +45,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationship to link scans to this user
     scans = relationship("ScanResult", back_populates="owner")
@@ -72,7 +73,7 @@ class ScanResult(Base):
     heatmap_url = Column(String) 
     original_image_url = Column(String) 
     
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationship back to the user
     owner = relationship("User", back_populates="scans")
