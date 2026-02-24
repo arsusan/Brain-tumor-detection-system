@@ -32,12 +32,14 @@ else:
         DATABASE_URL,
         pool_pre_ping=True,
         pool_size=10,
-        max_overflow=20
+        max_overflow=20,
+        pool_recycle=3600,
+        # ADD THIS: Forces SSL mode for cloud security
+        connect_args={"sslmode": "require"} 
     )
 
 # 4. SESSION AND BASE
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
 
 # 5. DEFINE THE USER TABLE
 class User(Base):
