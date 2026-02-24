@@ -6,25 +6,33 @@ from sqlalchemy.orm import sessionmaker, relationship
 from dotenv import load_dotenv
 
 # 1. LOAD ENVIRONMENT VARIABLES
-# Locally, it reads from .env. On Render/Production, it reads from Dashboard Settings.
 load_dotenv()
 
 # 2. THE CONNECTION URL
-# Fetches from .env. Fallback to your local DB only if DATABASE_URL is missing.
+# Defaults to your local Postgres, but allows GitHub Actions to inject 'sqlite:///:memory:'
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:root@localhost:5433/brain_tumor_db")
 
-# FIX: SQLAlchemy requires 'postgresql://' but Supabase often provides 'postgres://'
+# FIX: SQLAlchemy requires 'postgresql://' but some providers still use the old 'postgres://'
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# 3. CREATE THE ENGINE WITH PRODUCTION POOLING
-# pool_pre_ping: vital for cloud DBs to prevent 'connection closed' errors.
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20
-)
+# 3. CREATE THE ENGINE WITH SMART SWITCHING
+# We check the URL type to avoid passing Postgres-only arguments to SQLite
+if DATABASE_URL.startswith("sqlite"):
+    # Settings for GitHub Actions / Testing (Fast, In-Memory)
+    engine = create_engine(
+        DATABASE_URL, 
+        connect_args={"check_same_thread": False}
+    )
+else:
+    # Settings for Production PostgreSQL / Supabase
+    # pool_pre_ping: prevents 'connection closed' errors on cloud platforms
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=20
+    )
 
 # 4. SESSION AND BASE
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -60,7 +68,7 @@ class ScanResult(Base):
     prob_pituitary = Column(Float)
     prob_notumor = Column(Float)
     
-    # Image Paths / URLs
+    # Image Paths / URLs (Cloudinary)
     heatmap_url = Column(String) 
     original_image_url = Column(String) 
     
@@ -71,7 +79,7 @@ class ScanResult(Base):
 
 # 7. INITIALIZATION HELPER
 def init_db():
-    # Only creates tables that do not already exist in the cloud DB
+    # Only creates tables that do not already exist
     Base.metadata.create_all(bind=engine)
 
 # 8. DEPENDENCY HELPER
