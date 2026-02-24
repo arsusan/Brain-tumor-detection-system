@@ -66,23 +66,34 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          lfs: true
+          lfs: false # We set this to false to stop Git from hunting for missing objects
 
-      - name: Push to Hugging Face Hub
+      - name: Push to Hugging Face Hub (Clean Sync)
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # 1. Basic Git Configuration
+          # 1. Setup Identity
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
 
-          # 2. Add Hugging Face as a remote
+          # 2. Create a fresh temporary directory and copy files
+          # This ensures we don't push the .git folder with the broken history
+          mkdir temp_sync
+          rsync -av . temp_sync --exclude .git
+          cd temp_sync
+
+          # 3. Initialize a BRAND NEW git repo in this folder
+          git init
+          git add .
+
+          # 4. Remove the broken LFS pointers from this fresh start
+          # If they don't exist in the current folder, git will ignore this
+          git rm -r --cached research/results/plots/ 2>/dev/null || true
+          git rm -r --cached frontend/public/plots/ 2>/dev/null || true
+
+          # 5. Commit everything as a clean "Initial Deploy"
+          git commit -m "Deploy: Clean sync to Hugging Face"
+
+          # 6. Force push to HF
           git remote add hf https://arsusan:$HF_TOKEN@huggingface.co/spaces/arsusan/NeuroScan
-
-          # 3. Configure LFS to be "lazy" for this push
-          git config lfs.allowincompletepush true
-
-          # 4. PUSH with the Server-Side Skip Flag
-          # The '-o lfs-skip-pre-push' tells Hugging Face NOT to reject the push
-          # even if those old training plots/images are missing from history.
-          git push --force hf main -o lfs-skip-pre-push
+          git push --force hf master:main
