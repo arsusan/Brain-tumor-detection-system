@@ -12,7 +12,11 @@ load_dotenv()
 # 2. THE CONNECTION URL
 # Defaults to your local Postgres, but allows GitHub Actions to inject 'sqlite:///:memory:'
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:root@localhost:5433/brain_tumor_db")
-
+if DATABASE_URL:
+    # Print only the host part to the logs for debugging
+    host = DATABASE_URL.split("@")[-1].split(":")[0]
+    print(f"📡 Attempting to connect to host: {host}")
+    
 # FIX: SQLAlchemy requires 'postgresql://' but some providers still use the old 'postgres://'
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
