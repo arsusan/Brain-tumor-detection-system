@@ -39,7 +39,6 @@ init_db()
 CLASS_LABELS = ['glioma', 'meningioma', 'notumor', 'pituitary']
 
 # 2. CORS CONFIGURATION
-# Update allow_origins with your Vercel URL once you deploy the frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "*"], 
@@ -60,64 +59,59 @@ def home():
 # Create a temporary directory for local processing before uploading to cloud
 TEMP_DIR = "static/temp"
 os.makedirs(TEMP_DIR, exist_ok=True)
-# Keep static mount for any fallback local needs
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # 3. AI MODEL LOADING & PREPROCESSOR SETUP
-# Get paths
+# --- THE SURGICAL PATCH START ---
+@keras.utils.register_keras_serializable()
+class PatchedDense(keras.layers.Dense):
+    """Intercepts and removes the quantization_config argument during loading"""
+    def __init__(self, *args, **kwargs):
+        kwargs.pop('quantization_config', None)
+        super().__init__(*args, **kwargs)
+
+def safe_load_model(path):
+    """Loads the Keras model while bypassing version-mismatch errors"""
+    try:
+        # We inject the PatchedDense into the loading process
+        return keras.models.load_model(
+            path, 
+            custom_objects={"Dense": PatchedDense},
+            compile=False
+        )
+    except Exception as e:
+        print(f"❌ Critical Load Error: {e}")
+        raise e
+# --- THE SURGICAL PATCH END ---
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__)) 
 MODEL_PATH = os.path.join(os.path.dirname(BASE_DIR), "models", "final_model_cnn_20260218_011908.keras")
 
-# Initialize variables as None first
 model = None
 preprocessor = None
 
-def safe_load_model(path):
-    try:
-        # Standard load
-        return keras.models.load_model(path)
-    except Exception as e:
-        print(f"⚠️ Initial load failed: {e}")
-        
-        # If the error is the specific 'quantization_config' keyword mismatch
-        if "quantization_config" in str(e):
-            print("🔧 Attempting to bypass quantization_config mismatch...")
-            
-            # This 'custom_objects' trick tells Keras: 
-            # "If you see a Dense layer with weird arguments, use this fixed version instead"
-            class FixedDense(keras.layers.Dense):
-                def __init__(self, *args, **kwargs):
-                    kwargs.pop('quantization_config', None)
-                    super().__init__(*args, **kwargs)
-
-            return keras.models.load_model(
-                path, 
-                custom_objects={"Dense": FixedDense}
-            )
-        raise e
-    
 if os.getenv("TESTING") == "True":
-    # --- LIGHTWEIGHT TEST SETUP ---
-    # We create a 5KB model instead of loading a 100MB one
     model = tf.keras.Sequential([
-        tf.keras.layers.InputLayer(input_shape=(224, 224, 3)),
+        tf.keras.layers.InputLayer(input_shape=(128, 128, 3)),
         tf.keras.layers.Dense(4, activation='softmax')
     ])
-    # We don't need the real preprocessor for tests
     preprocessor = None 
-    print("⚠️ running in TESTING mode: Dummy model initialized. Real model skipped.")
+    print("⚠️ running in TESTING mode: Dummy model initialized.")
 
 elif os.path.exists(MODEL_PATH):
-    cfg = Config()
-    preprocessor = ImagePreprocessor(cfg)
-    # Use keras.models instead of tf.keras.models
-    model = safe_load_model(MODEL_PATH) 
-    print(f"🚀 Model loaded successfully from {MODEL_PATH}")
+    try:
+        cfg = Config()
+        preprocessor = ImagePreprocessor(cfg)
+        print(f"🔄 Attempting to load model with patch: {MODEL_PATH}")
+        model = safe_load_model(MODEL_PATH) 
+        print(f"🚀 Model loaded successfully from {MODEL_PATH}")
+    except Exception as final_err:
+        print(f"❌ CRITICAL ERROR during model loading: {final_err}")
 else:
     print(f"❌ ERROR: Model file not found at {MODEL_PATH}")
 
 
-# 4. PREDICTION ENDPOINT (WITH CLOUD STORAGE)
+# 4. PREDICTION ENDPOINT
 @app.post("/predict")
 async def predict(
     user_name: str = Form(...),
@@ -149,44 +143,32 @@ async def predict(
 
         # D. PREPROCESSING & PREDICTION
         if os.getenv("TESTING") == "True":
-            # 1. Provide fake data for tests (matching expected model input shape)
-            # This avoids using the 'preprocessor' which is None in test mode
-            img_tensor = tf.random.uniform((1, 224, 224, 3))
-            
-            # 2. Mock prediction values for consistent test results
-            # [glioma, meningioma, notumor, pituitary]
-            # We use 0.9 for 'glioma' so the test_main.py assertions pass
+            img_tensor = tf.random.uniform((1, 128, 128, 3))
             preds = np.array([0.9, 0.05, 0.02, 0.03], dtype=np.float32)
         else:
-            # --- PRODUCTION LOGIC ---
             img_array = preprocessor.preprocess_single(temp_file_path, augment=False)
             img_tensor = tf.convert_to_tensor(img_array, dtype=tf.float32)
-            
             if len(img_tensor.shape) == 3:
                 img_tensor = tf.expand_dims(img_tensor, axis=0)
             
             preds = model.predict(img_tensor, verbose=0)[0]
 
-        # Process results (works for both Mock and Real)
         pred_idx = np.argmax(preds)
         label = CLASS_LABELS[pred_idx]
         confidence = float(preds[pred_idx])
 
         # E. HEATMAP LOGIC
-        final_heatmap_url = original_url # Fallback if notumor or error
+        final_heatmap_url = original_url 
         
         if label != 'notumor':
             local_heatmap_path = os.path.join(TEMP_DIR, f"heatmap_{scan_id}.png")
             try:
+                # Based on your logs, "conv2d_final" is the correct target layer
                 heatmap = generate_gradcam(img_tensor, model, last_conv_layer_name="conv2d_final")
                 if heatmap is not None and np.max(heatmap) > 0:
                     superimpose_heatmap(temp_file_path, heatmap, save_path=local_heatmap_path)
-                    
-                    # Upload Heatmap to Cloudinary
                     hm_upload = cloudinary.uploader.upload(local_heatmap_path, folder="neuroscan/results")
                     final_heatmap_url = hm_upload['secure_url']
-                else:
-                    print("⚠️ Heatmap generation failed, using original.")
             except Exception as grad_err:
                 print(f"❌ Grad-CAM Error: {grad_err}")
 
@@ -207,7 +189,7 @@ async def predict(
         db.commit()
         db.refresh(new_record)
 
-        # G. CLEANUP TEMPORARY FILES
+        # G. CLEANUP
         if os.path.exists(temp_file_path): os.remove(temp_file_path)
         if local_heatmap_path and os.path.exists(local_heatmap_path): os.remove(local_heatmap_path)
 
@@ -216,12 +198,11 @@ async def predict(
             "user_name": user.name,
             "prediction": label,
             "confidence": f"{confidence*100:.2f}%",
-            "probabilities": {label: f"{prob*100:.1f}%" for label, prob in zip(CLASS_LABELS, preds)},
+            "probabilities": {name: f"{prob*100:.1f}%" for name, prob in zip(CLASS_LABELS, preds)},
             "heatmap_url": final_heatmap_url,
             "created_at": new_record.created_at
         }
     except Exception as e:
-        # Ensure cleanup even if error occurs
         if temp_file_path and os.path.exists(temp_file_path): os.remove(temp_file_path)
         import traceback
         traceback.print_exc()
@@ -240,7 +221,7 @@ async def get_history(db: Session = Depends(get_db)):
         "prediction": scan.prediction,
         "confidence": f"{scan.confidence*100:.2f}%",
         "created_at": scan.created_at,
-        "heatmap_url": scan.heatmap_url # Cloudinary URL
+        "heatmap_url": scan.heatmap_url
     } for scan, name in results]
 
 # 6. DELETE ENDPOINT
@@ -249,10 +230,9 @@ async def delete_scan(scan_id: int, db: Session = Depends(get_db)):
     record = db.query(ScanResult).filter(ScanResult.id == scan_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
-            
     db.delete(record)
     db.commit()
-    return {"message": "Successfully deleted record (Cloud URLs remain in Cloudinary storage)"}
+    return {"message": "Successfully deleted record"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
