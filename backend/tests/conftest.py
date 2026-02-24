@@ -1,10 +1,11 @@
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from backend.database import Base, get_db
 from backend.main import app
 
-# 1. Use SQLite in-memory for lightning fast tests
+# 1. Setup the In-Memory Test Database
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
 engine = create_engine(
@@ -12,26 +13,39 @@ engine = create_engine(
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-@pytest.fixture(scope="function")
-def db_session():
-    """Create a fresh database for each test case."""
+@pytest.fixture(scope="session", autouse=True)
+def setup_database():
+    # This force-creates the 'users' and 'scans' tables in the test memory
     Base.metadata.create_all(bind=engine)
-    session = TestingSessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
-        Base.metadata.drop_all(bind=engine)
+    yield
+    Base.metadata.drop_all(bind=engine)
 
-@pytest.fixture(scope="module")
-def override_get_db(db_session):
-    """Override the FastAPI dependency to use the test database."""
+@pytest.fixture
+def db_session():
+    connection = engine.connect()
+    transaction = connection.begin()
+    session = TestingSessionLocal(bind=connection)
+    
+    yield session
+    
+    session.close()
+    transaction.rollback()
+    connection.close()
+
+# 2. Override the get_db dependency in the FastAPI app
+@pytest.fixture(autouse=True)
+def override_get_db():
     def _get_test_db():
         try:
-            yield db_session
+            db = TestingSessionLocal()
+            yield db
         finally:
-            pass
+            db.close()
     
     app.dependency_overrides[get_db] = _get_test_db
     yield
     app.dependency_overrides.clear()
+
+@pytest.fixture
+def client():
+    return TestClient(app)
