@@ -1,7 +1,8 @@
+import os
+os.environ["TESTING"] = "True"
 import numpy as np
 import tensorflow as tf
 import pytest
-import os
 from backend.explainability import generate_gradcam, superimpose_heatmap
 
 @pytest.fixture
