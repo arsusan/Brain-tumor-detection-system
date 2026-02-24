@@ -1,7 +1,9 @@
+// lib/api.ts
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'https://arsusan-neuroscan.hf.space', // Using 127.0.0.1 is more stable for local dev
+  // This will use the environment variable if it exists, otherwise it falls back to HF
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'https://arsusan-neuroscan.hf.space',
 });
 
 export default api;

@@ -63,7 +63,11 @@ export default function Home() {
   const loadHeatmapAsBase64 = (url: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
+      // This is vital for Cloudinary -> PDF generation
       img.crossOrigin = "anonymous"; 
+      
+      // If it's already a full URL (Cloudinary), use it. 
+      // Otherwise, append the backend URL.
       img.src = url.startsWith("http") ? url : `${BACKEND_URL}/${url}`;
 
       img.onload = () => {
@@ -73,7 +77,11 @@ export default function Home() {
         const ctx = canvas.getContext("2d");
         if (!ctx) return reject("Canvas context failed");
         ctx.drawImage(img, 0, 0);
-        resolve(canvas.toDataURL("image/png"));
+        try {
+          resolve(canvas.toDataURL("image/png"));
+        } catch (err) {
+          reject("CORS Tainted Canvas: Ensure Cloudinary allows your domain.");
+        }
       };
       img.onerror = (err) => reject(err);
     });
@@ -330,7 +338,7 @@ export default function Home() {
                           src={
                             result.heatmap_url.startsWith("http")
                               ? result.heatmap_url
-                              : `${BACKEND_URL}/${result.heatmap_url}?t=${Date.now()}`
+                              : `${BACKEND_URL}/${result.heatmap_url}`
                           }
                           className="w-full h-full object-contain"
                           alt="Heatmap"
