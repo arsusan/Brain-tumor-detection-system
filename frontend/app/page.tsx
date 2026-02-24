@@ -170,26 +170,27 @@ export default function Home() {
     }
   };
 
+  // Responsive Skeleton Loader
   const ResultSkeleton = () => (
-    <div className="p-10 animate-pulse">
-      <div className="flex justify-between items-start mb-10">
+    <div className="p-4 md:p-10 animate-pulse">
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6 md:mb-10">
         <div>
-          <div className="h-10 w-64 bg-slate-200 rounded-2xl mb-2"></div>
-          <div className="h-4 w-32 bg-slate-200 rounded-lg"></div>
+          <div className="h-8 md:h-10 w-48 md:w-64 bg-slate-200 rounded-2xl mb-2"></div>
+          <div className="h-3 md:h-4 w-24 md:w-32 bg-slate-200 rounded-lg"></div>
         </div>
-        <div className="flex gap-3">
-          <div className="h-14 w-32 bg-slate-200 rounded-2xl"></div>
-          <div className="h-14 w-32 bg-slate-200 rounded-2xl"></div>
+        <div className="flex gap-2 md:gap-3 w-full sm:w-auto">
+          <div className="h-10 md:h-14 flex-1 sm:flex-none w-full sm:w-28 md:w-32 bg-slate-200 rounded-2xl"></div>
+          <div className="h-10 md:h-14 flex-1 sm:flex-none w-full sm:w-28 md:w-32 bg-slate-200 rounded-2xl"></div>
         </div>
       </div>
-      <div className="grid md:grid-cols-2 gap-12">
-        <div className="space-y-8">
-          <div className="h-40 bg-slate-200 rounded-[2rem]"></div>
-          <div className="h-64 bg-slate-200 rounded-[2rem]"></div>
+      <div className="grid md:grid-cols-2 gap-6 md:gap-12">
+        <div className="space-y-4 md:space-y-8">
+          <div className="h-32 md:h-40 bg-slate-200 rounded-2xl md:rounded-[2rem]"></div>
+          <div className="h-48 md:h-64 bg-slate-200 rounded-2xl md:rounded-[2rem]"></div>
         </div>
-        <div className="space-y-6">
-          <div className="h-6 w-48 bg-slate-200 rounded-lg mx-auto"></div>
-          <div className="aspect-square bg-slate-200 rounded-[2.5rem]"></div>
+        <div className="space-y-4 md:space-y-6">
+          <div className="h-5 md:h-6 w-32 md:w-48 bg-slate-200 rounded-lg mx-auto"></div>
+          <div className="aspect-square bg-slate-200 rounded-2xl md:rounded-[2.5rem]"></div>
         </div>
       </div>
     </div>
@@ -203,7 +204,6 @@ export default function Home() {
             <h1 className="text-xl font-bold text-slate-800 tracking-tight">
               Diagnostic Console
             </h1>
-            {/* Show date only after client mount */}
             {currentDate && (
               <div className="hidden md:flex items-center gap-2 text-sm text-slate-500">
                 <Calendar size={16} className="text-blue-500" />
@@ -220,20 +220,20 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <main className="max-w-7xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
         {/* Left Panel - Case Registration */}
-        <div className={`lg:col-span-4 space-y-6 ${showHistory ? 'hidden lg:block' : ''}`}>
+        <div className={`lg:col-span-4 space-y-4 md:space-y-6 ${showHistory ? 'hidden lg:block' : ''}`}>
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4 }}
-            className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200"
+            className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] shadow-sm border border-slate-200"
           >
-            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 md:mb-6 flex items-center gap-2">
               <User size={14} /> Case Registration
             </h2>
 
-            <div className="mb-6">
+            <div className="mb-4 md:mb-6">
               <label className="text-[10px] font-bold text-slate-500 uppercase ml-1 mb-2 block">
                 Patient Full Name
               </label>
@@ -245,18 +245,18 @@ export default function Home() {
                   value={patientName}
                   onChange={(e) => setPatientName(e.target.value)}
                   disabled={!!result || loading}
-                  className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold text-slate-700"
+                  className="w-full pl-12 pr-4 py-3 md:py-4 bg-slate-50 border border-slate-200 rounded-xl md:rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-bold text-sm md:text-base text-slate-700"
                 />
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               <label className="text-[10px] font-bold text-slate-500 uppercase ml-1 block">
                 MRI Source File
               </label>
               {!preview ? (
                 <div
-                  className={`border-2 border-dashed rounded-3xl p-10 text-center transition-colors cursor-pointer relative ${
+                  className={`border-2 border-dashed rounded-2xl md:rounded-3xl p-6 md:p-10 text-center transition-colors cursor-pointer relative ${
                     dragActive
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-slate-200 hover:bg-slate-50'
@@ -269,7 +269,7 @@ export default function Home() {
                     if (f) { setFile(f); setPreview(URL.createObjectURL(f)); }
                   }}
                 >
-                  <Upload className="mx-auto mb-2 text-slate-300" size={32} />
+                  <Upload className="mx-auto mb-2 text-slate-300" size={28} />
                   <p className="text-xs font-bold text-slate-500">
                     Drop MRI or Click to Browse
                   </p>
@@ -283,14 +283,14 @@ export default function Home() {
                   />
                 </div>
               ) : (
-                <div className="relative rounded-2xl overflow-hidden border-4 border-white shadow-lg">
-                  <img src={preview} className="w-full h-48 object-cover" alt="Preview" />
+                <div className="relative rounded-xl md:rounded-2xl overflow-hidden border-4 border-white shadow-lg">
+                  <img src={preview} className="w-full h-40 md:h-48 object-cover" alt="Preview" />
                   {!result && (
                     <button
                       onClick={() => { setFile(null); setPreview(null); }}
-                      className="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-full text-rose-500 shadow-md"
+                      className="absolute top-2 right-2 bg-white/90 backdrop-blur p-1.5 md:p-2 rounded-full text-rose-500 shadow-md"
                     >
-                      <X size={16} />
+                      <X size={14} />
                     </button>
                   )}
                 </div>
@@ -300,12 +300,12 @@ export default function Home() {
             <button
               onClick={handleUpload}
               disabled={!file || !patientName || loading || !!result}
-              className="w-full mt-8 bg-slate-900 text-white py-5 rounded-2xl font-black flex justify-center items-center gap-3 disabled:bg-slate-100 disabled:text-slate-400 shadow-2xl transition-all active:scale-95"
+              className="w-full mt-6 md:mt-8 bg-slate-900 text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black flex justify-center items-center gap-2 md:gap-3 disabled:bg-slate-100 disabled:text-slate-400 shadow-2xl transition-all active:scale-95 text-sm md:text-base"
             >
               {loading ? (
-                <RefreshCcw className="animate-spin" size={20} />
+                <RefreshCcw className="animate-spin" size={18} />
               ) : (
-                <Zap size={20} className="text-blue-400" />
+                <Zap size={18} className="text-blue-400" />
               )}
               {result ? "REPORT READY" : "GENERATE AI ANALYSIS"}
             </button>
@@ -313,9 +313,9 @@ export default function Home() {
             {result && (
               <button
                 onClick={resetAnalysis}
-                className="w-full mt-3 border-2 border-slate-100 text-slate-500 py-4 rounded-2xl font-bold flex justify-center items-center gap-2 hover:bg-slate-50 transition-all"
+                className="w-full mt-3 border-2 border-slate-100 text-slate-500 py-3 md:py-4 rounded-xl md:rounded-2xl font-bold flex justify-center items-center gap-2 hover:bg-slate-50 transition-all text-sm md:text-base"
               >
-                <RotateCcw size={16} /> ANALYZE AGAIN
+                <RotateCcw size={14} /> ANALYZE AGAIN
               </button>
             )}
           </motion.div>
@@ -323,7 +323,7 @@ export default function Home() {
 
         {/* Right Panel - Results / History */}
         <div className="lg:col-span-8">
-          <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 min-h-[600px] overflow-hidden">
+          <div className="bg-white rounded-2xl md:rounded-[2.5rem] shadow-sm border border-slate-200 min-h-[500px] md:min-h-[600px] overflow-hidden">
             <AnimatePresence mode="wait">
               {showHistory ? (
                 <motion.div
@@ -332,14 +332,14 @@ export default function Home() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.3 }}
-                  className="p-10"
+                  className="p-4 md:p-10"
                 >
-                  <h2 className="text-3xl font-black text-slate-900 mb-8 flex items-center gap-3">
-                    <HistoryIcon size={32} className="text-blue-600" /> Patient Archive
+                  <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-4 md:mb-8 flex items-center gap-2 md:gap-3">
+                    <HistoryIcon size={24} className="text-blue-600" /> Patient Archive
                   </h2>
-                  <div className="grid gap-4">
+                  <div className="grid gap-3 md:gap-4">
                     {history.length === 0 ? (
-                      <p className="text-slate-400 italic">No records found.</p>
+                      <p className="text-slate-400 italic text-sm md:text-base">No records found.</p>
                     ) : (
                       history.map((item) => (
                         <motion.div
@@ -347,24 +347,24 @@ export default function Home() {
                           initial={{ opacity: 0, scale: 0.95 }}
                           animate={{ opacity: 1, scale: 1 }}
                           transition={{ duration: 0.2 }}
-                          className="flex items-center justify-between p-6 bg-slate-50 rounded-3xl border border-slate-100 hover:border-blue-200 transition-all group"
+                          className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 md:p-6 bg-slate-50 rounded-xl md:rounded-3xl border border-slate-100 hover:border-blue-200 transition-all group gap-3"
                         >
-                          <div className="flex items-center gap-5">
-                            <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-200 uppercase">
+                          <div className="flex items-center gap-3 md:gap-5 w-full sm:w-auto">
+                            <div className="w-8 h-8 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-200 uppercase text-sm md:text-base">
                               {item.user_name?.[0] || 'P'}
                             </div>
-                            <div>
-                              <p className="font-black text-slate-800 uppercase text-sm tracking-tight">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-black text-slate-800 uppercase text-xs md:text-sm tracking-tight truncate">
                                 {item.user_name}
                               </p>
-                              <p className="text-[10px] font-bold text-slate-400 uppercase">
+                              <p className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase">
                                 {new Date(item.created_at).toLocaleDateString()}
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2 md:gap-4 w-full sm:w-auto justify-end">
                             <span
-                              className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase ${
+                              className={`px-2 md:px-4 py-1 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase ${
                                 item.prediction === 'notumor'
                                   ? 'bg-emerald-100 text-emerald-700'
                                   : 'bg-rose-100 text-rose-700'
@@ -374,9 +374,9 @@ export default function Home() {
                             </span>
                             <button
                               onClick={() => deleteHistoryItem(item.id)}
-                              className="p-2.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                              className="p-1.5 md:p-2.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg md:rounded-xl transition-all"
                             >
-                              <Trash2 size={18} />
+                              <Trash2 size={14} />
                             </button>
                           </div>
                         </motion.div>
@@ -393,67 +393,72 @@ export default function Home() {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ duration: 0.4 }}
-                  className="p-10"
+                  className="p-4 md:p-10"
                 >
-                  <div className="flex justify-between items-start mb-10">
+                  {/* Header - stacks on mobile */}
+                  <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6 md:mb-10">
                     <div>
-                      <h2 className="text-4xl font-black text-slate-900 tracking-tight">
+                      <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight">
                         Clinical Findings
                       </h2>
-                      <p className="text-blue-600 font-bold mt-1 tracking-wide uppercase">
+                      <p className="text-blue-600 font-bold mt-1 tracking-wide uppercase text-xs md:text-base">
                         CASE: {patientName}
                       </p>
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex gap-2 md:gap-3 w-full sm:w-auto">
                       <button
                         onClick={resetAnalysis}
-                        className="bg-slate-100 text-slate-600 px-6 py-4 rounded-2xl font-bold flex items-center gap-2 hover:bg-slate-200 transition-all"
+                        className="flex-1 sm:flex-none bg-slate-100 text-slate-600 px-4 md:px-6 py-2 md:py-4 rounded-xl md:rounded-2xl font-bold flex items-center justify-center gap-1 md:gap-2 hover:bg-slate-200 transition-all text-xs md:text-base"
                       >
-                        <RotateCcw size={18} /> NEW SCAN
+                        <RotateCcw size={14} /> NEW SCAN
                       </button>
                       <button
                         onClick={generateImmediateReport}
-                        className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all"
+                        className="flex-1 sm:flex-none bg-blue-600 text-white px-4 md:px-8 py-2 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-1 md:gap-3 hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all text-xs md:text-base"
                       >
-                        <Download size={20} /> SAVE PDF
+                        <Download size={14} /> SAVE PDF
                       </button>
                     </div>
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-12">
-                    <div className="space-y-8">
+                  {/* Two-column layout - stacks on mobile */}
+                  <div className="grid md:grid-cols-2 gap-6 md:gap-12">
+                    {/* Left Column: Result Card & Confidence */}
+                    <div className="space-y-4 md:space-y-8">
+                      {/* Result Card */}
                       <div
-                        className={`p-8 rounded-[2rem] border-4 ${
+                        className={`p-4 md:p-8 rounded-2xl md:rounded-[2rem] border-4 ${
                           result.prediction === 'notumor'
                             ? 'bg-emerald-50 border-emerald-100 text-emerald-900'
                             : 'bg-rose-50 border-rose-100 text-rose-900'
                         }`}
                       >
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-4 opacity-50">
+                        <p className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] mb-2 md:mb-4 opacity-50">
                           Result
                         </p>
-                        <div className="flex items-center gap-4 text-4xl font-black">
+                        <div className="flex items-center gap-2 md:gap-4 text-2xl md:text-4xl font-black">
                           {result.prediction === 'notumor' ? (
-                            <CheckCircle size={40} />
+                            <CheckCircle size={24} />
                           ) : (
-                            <ShieldAlert size={40} />
+                            <ShieldAlert size={24} />
                           )}
-                          {result.prediction.toUpperCase()}
+                          <span className="break-words">{result.prediction.toUpperCase()}</span>
                         </div>
                       </div>
 
-                      <div className="bg-slate-50 p-8 rounded-[2rem]">
-                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                          <PieChart size={16} /> AI Confidence
+                      {/* AI Confidence */}
+                      <div className="bg-slate-50 p-4 md:p-8 rounded-2xl md:rounded-[2rem]">
+                        <h3 className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 md:mb-6 flex items-center gap-1 md:gap-2">
+                          <PieChart size={12} /> AI Confidence
                         </h3>
                         {result.probabilities &&
                           Object.entries(result.probabilities).map(([label, val]) => (
-                            <div key={label} className="mb-4">
-                              <div className="flex justify-between text-xs font-black mb-1 uppercase tracking-tighter text-slate-700">
+                            <div key={label} className="mb-3 md:mb-4">
+                              <div className="flex justify-between text-[10px] md:text-xs font-black mb-1 uppercase tracking-tighter text-slate-700">
                                 <span>{label}</span>
                                 <span>{val}</span>
                               </div>
-                              <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                              <div className="h-1.5 md:h-2 bg-slate-200 rounded-full overflow-hidden">
                                 <div
                                   className={`h-full transition-all duration-1000 ${
                                     result.prediction === label
@@ -468,11 +473,12 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <div className="space-y-6">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                    {/* Right Column: Heatmap */}
+                    <div className="space-y-4 md:space-y-6">
+                      <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
                         Neural Heatmap (Grad-CAM)
                       </p>
-                      <div className="bg-slate-900 p-2 rounded-[2.5rem] shadow-2xl aspect-square flex items-center justify-center border-8 border-white overflow-hidden">
+                      <div className="bg-slate-900 p-1 md:p-2 rounded-2xl md:rounded-[2.5rem] shadow-2xl aspect-square flex items-center justify-center border-4 md:border-8 border-white overflow-hidden">
                         <img
                           src={
                             result.heatmap_url.startsWith('http')
@@ -483,9 +489,9 @@ export default function Home() {
                           alt="Heatmap"
                         />
                       </div>
-                      <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-2xl border border-blue-100">
-                        <Info size={20} className="text-blue-500" />
-                        <p className="text-[10px] font-medium text-blue-800 leading-relaxed">
+                      <div className="flex items-center gap-2 md:gap-3 p-3 md:p-4 bg-blue-50 rounded-xl md:rounded-2xl border border-blue-100">
+                        <Info size={14} className="text-blue-500" />
+                        <p className="text-[8px] md:text-[10px] font-medium text-blue-800 leading-relaxed">
                           Activation zones highlight morphological features used by the model.
                         </p>
                       </div>
@@ -498,10 +504,10 @@ export default function Home() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="h-full flex flex-col items-center justify-center p-20 text-slate-200"
+                  className="h-full flex flex-col items-center justify-center p-10 md:p-20 text-slate-200"
                 >
-                  <Brain size={120} className="mb-8 opacity-20" />
-                  <p className="text-xl font-black text-slate-300 italic tracking-tight uppercase">
+                  <Brain size={80} className="mb-4 md:mb-8 opacity-20" />
+                  <p className="text-lg md:text-xl font-black text-slate-300 italic tracking-tight uppercase">
                     Awaiting Analysis
                   </p>
                 </motion.div>

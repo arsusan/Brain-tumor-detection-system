@@ -1,6 +1,5 @@
 ---
 title: NeuroScan AI
-emoji: 🧠
 colorFrom: indigo
 colorTo: blue
 sdk: docker
