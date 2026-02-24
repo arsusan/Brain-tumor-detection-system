@@ -64,7 +64,7 @@ if os.getenv("TESTING") == "True":
     # --- LIGHTWEIGHT TEST SETUP ---
     # We create a 5KB model instead of loading a 100MB one
     model = tf.keras.Sequential([
-        tf.keras.layers.InputLayer(input_shape=(224, 224, 3)),
+        tf.keras.layers.InputLayer(shape=(224, 224, 3)),
         tf.keras.layers.Dense(4, activation='softmax')
     ])
     # We don't need the real preprocessor for tests

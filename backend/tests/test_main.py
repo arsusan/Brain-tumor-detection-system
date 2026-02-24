@@ -20,7 +20,7 @@ def dummy_model():
     Adjust input_shape to match your real model (e.g., 150, 150, 3).
     """
     model = tf.keras.Sequential([
-        tf.keras.layers.InputLayer(input_shape=(224, 224, 3)),
+        tf.keras.layers.InputLayer(shape=(224, 224, 3)),
         tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(4, activation='softmax')
     ])
