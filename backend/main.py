@@ -7,6 +7,7 @@ import shutil
 import os
 import numpy as np
 import tensorflow as tf
+import keras
 import uuid
 import cloudinary
 import cloudinary.uploader
@@ -81,13 +82,11 @@ if os.getenv("TESTING") == "True":
     print("⚠️ running in TESTING mode: Dummy model initialized. Real model skipped.")
 
 elif os.path.exists(MODEL_PATH):
-    # --- REAL PRODUCTION SETUP ---
-    # Only load these heavy objects if we are NOT testing
     cfg = Config()
     preprocessor = ImagePreprocessor(cfg)
-    model = tf.keras.models.load_model(MODEL_PATH)
+    # Use keras.models instead of tf.keras.models
+    model = keras.models.load_model(MODEL_PATH) 
     print(f"🚀 Model loaded successfully from {MODEL_PATH}")
-
 else:
     print(f"❌ ERROR: Model file not found at {MODEL_PATH}")
 
