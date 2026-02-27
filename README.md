@@ -1,4 +1,12 @@
-
+---
+title: NeuroScan AI
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+---
 # NeuroScan AI: Advanced Brain Tumor Diagnostic System
 
 NeuroScan AI is a full-stack, medical-imaging diagnostic platform that leverages Deep Learning to classify brain MRI scans. The system provides real-time analysis across four distinct categories with integrated Explainable AI (XAI) using Grad-CAM heatmaps to assist clinical decision-making.
