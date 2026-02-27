@@ -1,14 +1,3 @@
----
-title: NeuroScan AI
-colorFrom: indigo
-colorTo: blue
-sdk: docker
-app_port: 7860
-pinned: false
-license: mit
----
-
----
 
 # NeuroScan AI: Advanced Brain Tumor Diagnostic System
 
