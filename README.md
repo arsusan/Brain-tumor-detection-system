@@ -177,7 +177,7 @@ Before the first scan, ensure your external services are ready:
 
 After both deployments are complete:
 
-1. **Backend Check**: Visit `https://your-space.hf.space/`. You should see the JSON response: `{"status": "success", "message": "NeuroScan AI Backend is Running"}`.
+1. **Backend Check**: Visit `(https://huggingface.co/spaces/arsusan/NeuroScan)`. You should see the JSON response: `{"status": "success", "message": "NeuroScan AI Backend is Running"}`.
 2. **Frontend Check**: Visit your Vercel URL and attempt a "Test Scan."
 3. **Log Monitoring**: If an error occurs, check the **Space Logs** on Hugging Face for model errors and the **Vercel Logs** for connection errors.
 
